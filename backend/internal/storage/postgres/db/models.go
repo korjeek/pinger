@@ -5,6 +5,8 @@
 package db
 
 import (
+	"time"
+
 	uuid "github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgtype"
 )
@@ -13,21 +15,31 @@ type Monitor struct {
 	ID              uuid.UUID
 	UserID          uuid.UUID
 	Url             string
-	Tracked         bool
+	Active          bool
 	PollIntervalSec int32
-	CheckedAt       pgtype.Timestamptz
+	CheckedAt       time.Time
+}
+
+type Session struct {
+	ID         uuid.UUID
+	UserID     uuid.UUID
+	TokenHash  []byte
+	IssuedAt   pgtype.Timestamptz
+	ExpiresAt  pgtype.Timestamptz
+	RevokedAt  pgtype.Timestamptz
+	ReplacedBy pgtype.UUID
 }
 
 type Snapshot struct {
 	ID             uuid.UUID
 	MonitorID      uuid.UUID
-	CheckedAt      pgtype.Timestamptz
-	IsUp           bool
+	CheckedAt      time.Time
+	Alive          bool
 	StatusCode     int16
 	ResponseTimeMs int32
 	ResponseSize   int64
 	ServerName     string
-	SslExpiresAt   pgtype.Timestamptz
+	SslExpiresAt   *time.Time
 }
 
 type User struct {

@@ -11,10 +11,9 @@ import (
 	uuid "github.com/google/uuid"
 )
 
-const createUser = `-- name: CreateUser :one
+const createUser = `-- name: CreateUser :exec
 INSERT INTO users (id, email, password_hash)
 VALUES ($1, $2, $3)
-RETURNING id, email, password_hash
 `
 
 type CreateUserParams struct {
@@ -23,11 +22,9 @@ type CreateUserParams struct {
 	PasswordHash string
 }
 
-func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser, arg.ID, arg.Email, arg.PasswordHash)
-	var i User
-	err := row.Scan(&i.ID, &i.Email, &i.PasswordHash)
-	return i, err
+func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) error {
+	_, err := q.db.Exec(ctx, createUser, arg.ID, arg.Email, arg.PasswordHash)
+	return err
 }
 
 const deleteUser = `-- name: DeleteUser :exec
@@ -40,27 +37,27 @@ func (q *Queries) DeleteUser(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
-const findByEmail = `-- name: FindByEmail :one
-SELECT id, email, password_hash
-FROM users
-WHERE email = $1
-`
-
-func (q *Queries) FindByEmail(ctx context.Context, email string) (User, error) {
-	row := q.db.QueryRow(ctx, findByEmail, email)
-	var i User
-	err := row.Scan(&i.ID, &i.Email, &i.PasswordHash)
-	return i, err
-}
-
-const findByID = `-- name: FindByID :one
+const getUSerByID = `-- name: GetUSerByID :one
 SELECT id, email, password_hash
 FROM users
 WHERE id = $1
 `
 
-func (q *Queries) FindByID(ctx context.Context, id uuid.UUID) (User, error) {
-	row := q.db.QueryRow(ctx, findByID, id)
+func (q *Queries) GetUSerByID(ctx context.Context, id uuid.UUID) (User, error) {
+	row := q.db.QueryRow(ctx, getUSerByID, id)
+	var i User
+	err := row.Scan(&i.ID, &i.Email, &i.PasswordHash)
+	return i, err
+}
+
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, email, password_hash
+FROM users
+WHERE email = $1
+`
+
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+	row := q.db.QueryRow(ctx, getUserByEmail, email)
 	var i User
 	err := row.Scan(&i.ID, &i.Email, &i.PasswordHash)
 	return i, err

@@ -1,0 +1,713 @@
+﻿openapi: 3.1.0
+
+info:
+  title: Pinger API
+  description: API for a website uptime monitoring service
+  contact:
+    email: olegka823@gmail.com
+  version: 1.0.0
+tags:
+  - name: user
+    description: Operations about user management and authentication
+  - name: auth
+    description: Operations about auth user
+  - name: monitors
+    description: Operations about monitored objects
+paths:
+  /user:
+    post:
+      tags:
+        - user
+      summary: Create user
+      operationId: createUser
+
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreateRequest'
+
+      responses:
+        '201':
+          description: User created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '409':
+          description: User already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /user/{id}:
+    patch:
+      tags:
+        - user
+      summary: Update user
+      operationId: updateUser
+      security:
+        - BearerAuth: []
+
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: UUID of the user
+          schema:
+            type: string
+            format: uuid
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdateRequest'
+
+      responses:
+        '200':
+          description: User updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserResponse'
+        '401':
+          description: Unauthorized (missing or invalid access token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Email or username already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/login:
+    post:
+      tags:
+        - auth
+      summary: Logs user into the system
+      operationId: loginUser
+
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+
+      responses:
+        '200':
+          description: Successfully authenticated. The access token is returned in the body; the refresh token is set as an HttpOnly cookie.
+          headers:
+            Set-Cookie:
+              description: HttpOnly refresh token cookie (see the RefreshTokenCookie security scheme)
+              schema:
+                type: string
+                example: refresh_token=...; HttpOnly; Secure; SameSite=Strict; Path=/auth; Max-Age=2592000
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid email or password supplied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/refresh:
+    post:
+      tags:
+        - auth
+      summary: Rotate the refresh token and issue a new access token
+      operationId: refreshToken
+      security:
+        - RefreshTokenCookie: []
+
+      responses:
+        '200':
+          description: New token pair issued; the old refresh token is invalidated and a new one is set as a cookie.
+          headers:
+            Set-Cookie:
+              description: Newly rotated HttpOnly refresh token cookie
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Refresh token missing, expired, revoked, or already used (possible theft — treat all sessions for this user as compromised)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/logout:
+    post:
+      tags:
+        - auth
+      summary: Revoke the current refresh token and end the session
+      operationId: logoutUser
+      security:
+        - RefreshTokenCookie: []
+
+      responses:
+        '204':
+          description: Logged out successfully; the refresh token cookie is cleared
+          headers:
+            Set-Cookie:
+              description: Clears the refresh token cookie (Max-Age=0)
+              schema:
+                type: string
+        '401':
+          description: Refresh token missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /auth/callback/{provider}:
+    get:
+      tags:
+        - auth
+      summary: OAuth callback handler
+      operationId: oauthCallback
+
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          description: Provider name
+          schema:
+            type: string
+            enum: [google, github]
+        - name: code
+          in: query
+          required: true
+          description: Temporary authorization code from the OAuth provider
+          schema:
+            type: string
+            example: "4/0AfJohXm..."
+        - name: state
+          in: query
+          required: false
+          description: Security string
+          schema:
+            type: string
+
+      responses:
+        '200':
+          description: Successfully authenticated via OAuth. Token delivery matches /auth/login.
+          headers:
+            Set-Cookie:
+              description: HttpOnly refresh token cookie (see the RefreshTokenCookie security scheme)
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid, expired, or already-used authorization code
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: State mismatch or provider rejected the request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /monitors:
+    post:
+      tags:
+        - monitors
+      summary: Add object to monitor
+      operationId: createMonitor
+      security:
+        - BearerAuth: []
+
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MonitorCreateRequest'
+
+      responses:
+        '201':
+          description: Monitor successfully created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    get:
+      tags:
+        - monitors
+      summary: Get monitors for current user
+      operationId: getMonitors
+      security:
+        - BearerAuth: []
+
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of monitors to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+            example: 10
+        - name: offset
+          in: query
+          required: false
+          description: Number of monitors to skip for pagination
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            example: 20
+
+      responses:
+        '200':
+          description: A paginated list of user monitors
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MonitorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /monitors/{id}:
+    patch:
+      tags:
+        - monitors
+      summary: Update monitor configuration
+      operationId: updateMonitor
+      security:
+        - BearerAuth: []
+
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique UUID of the monitor to update
+          schema:
+            type: string
+            format: uuid
+            example: "7b9e4567-e89b-12d3-a456-426614174000"
+
+      requestBody:
+        description: Monitor fields to update
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MonitorUpdateRequest'
+
+      responses:
+        '200':
+          description: Monitor updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonitorResponse'
+        '401':
+          description: Unauthorized (Missing or invalid token)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (You do not own this monitor)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Monitor not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - monitors
+      summary: Delete a monitor
+      operationId: deleteMonitor
+      security:
+        - BearerAuth: []
+
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique UUID of the monitor to delete
+          schema:
+            type: string
+            format: uuid
+            example: "7b9e4567-e89b-12d3-a456-426614174000"
+
+      responses:
+        '204':
+          description: Monitor successfully deleted
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /monitors/{id}/snapshots:
+    get:
+      tags:
+        - monitors
+      summary: Get snapshots by monitor ID
+      operationId: getSnapshotsByMonitorID
+      security:
+        - BearerAuth: []
+
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Unique UUID of the monitor to fetch snapshots for
+          schema:
+            type: string
+            format: uuid
+            example: "7b9e4567-e89b-12d3-a456-426614174000"
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of snapshots to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+            example: 20
+        - name: offset
+          in: query
+          required: false
+          description: Number of snapshots to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+            example: 0
+
+      responses:
+        '200':
+          description: A paginated list of snapshots
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SnapshotResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    UserCreateRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: 'john@email.com'
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: 'SecretP@ss123'
+
+    UserUpdateRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: 'new_email@example.com'
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: 'NewSuperSecret123!'
+
+    UserResponse:
+      type: object
+      required:
+        - id
+        - email
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: '7b9e4567-e89b-12d3-a456-426614174000'
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: 'john@email.com'
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: 'john@email.com'
+        password:
+          type: string
+          format: password
+          minLength: 8
+          example: 'SecretP@ss123'
+
+    AuthResponse:
+      type: object
+      required:
+        - accessToken
+        - tokenType
+      properties:
+        accessToken:
+          type: string
+          description: The JWT access token to be used in the Authorization header
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+        tokenType:
+          type: string
+          description: The type of the token issued
+          example: "Bearer"
+        expiresIn:
+          type: integer
+          description: Access token lifetime in seconds. The refresh token's lifetime is not exposed here — it lives in the HttpOnly cookie's Max-Age.
+          example: 900
+
+    MonitorCreateRequest:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          example: 'https://myportfolio.com'
+        pollIntervalSec:
+          type: integer
+          default: 300
+          example: 300
+
+    MonitorResponse:
+      type: object
+      required:
+        - id
+        - url
+        - active
+        - pollIntervalSec
+        - checkedAt
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "7b9e4567-e89b-12d3-a456-426614174000"
+        url:
+          type: string
+          format: uri
+          example: 'https://myportfolio.com'
+        active:
+          type: boolean
+          example: true
+        pollIntervalSec:
+          type: integer
+          example: 300
+        checkedAt:
+          type: string
+          format: date-time
+          example: "2026-09-23T12:00:00Z"
+
+    MonitorUpdateRequest:
+      type: object
+      required:
+        - url
+        - active
+        - pollIntervalSec
+      properties:
+        url:
+          type: string
+          format: uri
+          example: "https://my-new-domain.com"
+        active:
+          type: boolean
+          example: true
+        pollIntervalSec:
+          type: integer
+          example: 300
+
+    SnapshotResponse:
+      type: object
+      required:
+        - id
+        - monitorId
+        - checkedAt
+        - alive
+        - statusCode
+        - responseTimeMs
+        - responseSize
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: "9f8e4567-e89b-12d3-a456-426614174999"
+        monitorId:
+          type: string
+          format: uuid
+          example: "7b9e4567-e89b-12d3-a456-426614174000"
+        checkedAt:
+          type: string
+          format: date-time
+          example: "2026-09-23T12:00:00Z"
+        alive:
+          type: boolean
+          example: true
+        statusCode:
+          type: integer
+          nullable: true
+          example: 200
+        responseTimeMs:
+          type: integer
+          example: 145
+        responseSize:
+          type: integer
+          example: 4520
+        serverName:
+          type: string
+          nullable: true
+          example: "nginx/1.25.1"
+        sslExpiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: "2027-01-15T00:00:00Z"
+
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: "BAD_REQUEST"
+        message:
+          type: string
+          example: "Error message details"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      description: "Access token — short-lived JWT sent as `Authorization: Bearer <token>`"
+      scheme: bearer
+      bearerFormat: JWT
+
+    RefreshTokenCookie:
+      type: apiKey
+      in: cookie
+      name: refresh_token
+      description: >
+        Long-lived, opaque refresh token stored server-side (hashed) and delivered
+        as an HttpOnly, Secure, SameSite cookie. Never exposed to JavaScript or
+        returned in a JSON body. Used only by /auth/refresh and /auth/logout.
+
+    GoogleOAuth:
+      type: oauth2
+      description: >
+        Informational only. Describes the flow the frontend uses to redirect the
+        user to Google — it is not referenced as `security` on any operation
+        here, because this API never receives a Google-issued token directly;
+        it only receives the authorization code via GET /auth/callback/google.
+      flows:
+        authorizationCode:
+          authorizationUrl: https://accounts.google.com/o/oauth2/v2/auth
+          tokenUrl: https://oauth2.googleapis.com/token
+          scopes:
+            openid: OpenID Connect identification
+            email: user email access
+            profile: user data access
+
+    GitHubOAuth:
+      type: oauth2
+      description: Informational only — same rationale as GoogleOAuth above.
+      flows:
+        authorizationCode:
+          authorizationUrl: https://github.com/login/oauth/authorize
+          tokenUrl: https://github.com/login/oauth/access_token
+          scopes:
+            user:email: user email access
+            read:user: user data access

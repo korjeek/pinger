@@ -1,13 +1,22 @@
-package storage
+package postgres
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/korjeek/pinger/backend/config"
 )
 
-func NewPool(ctx context.Context, cfg config.DBConfig) (*pgxpool.Pool, error) {
+type DBConfig struct {
+	ConnString        string
+	MaxConns          int32
+	MinConns          int32
+	MaxConnIdleTime   time.Duration
+	MaxConnLifetime   time.Duration
+	HealthCheckPeriod time.Duration
+}
+
+func NewPool(ctx context.Context, cfg DBConfig) (*pgxpool.Pool, error) {
 	dbCfg, err := pgxpool.ParseConfig(cfg.ConnString)
 	if err != nil {
 		//TODO: handling error

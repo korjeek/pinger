@@ -1,0 +1,17 @@
+﻿version: '3.8'
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: pinger_postgres_container
+    environment:
+      POSTGRES_USER: pinger_user
+      POSTGRES_PASSWORD: pinger_password
+      POSTGRES_DB: pinger_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

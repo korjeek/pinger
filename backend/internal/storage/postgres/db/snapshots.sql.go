@@ -7,35 +7,35 @@ package db
 
 import (
 	"context"
+	"time"
 
 	uuid "github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createSnapshot = `-- name: CreateSnapshot :one
 INSERT INTO snapshots (
-    id, monitor_id, is_up, status_code, response_time_ms, response_size, server_name, ssl_expires_at
+    id, monitor_id, alive, status_code, response_time_ms, response_size, server_name, ssl_expires_at
 )
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-RETURNING id, monitor_id, checked_at, is_up, status_code, response_time_ms, response_size, server_name, ssl_expires_at
+RETURNING id, monitor_id, checked_at, alive, status_code, response_time_ms, response_size, server_name, ssl_expires_at
 `
 
 type CreateSnapshotParams struct {
 	ID             uuid.UUID
 	MonitorID      uuid.UUID
-	IsUp           bool
+	Alive          bool
 	StatusCode     int16
 	ResponseTimeMs int32
 	ResponseSize   int64
 	ServerName     string
-	SslExpiresAt   pgtype.Timestamptz
+	SslExpiresAt   *time.Time
 }
 
 func (q *Queries) CreateSnapshot(ctx context.Context, arg CreateSnapshotParams) (Snapshot, error) {
 	row := q.db.QueryRow(ctx, createSnapshot,
 		arg.ID,
 		arg.MonitorID,
-		arg.IsUp,
+		arg.Alive,
 		arg.StatusCode,
 		arg.ResponseTimeMs,
 		arg.ResponseSize,
@@ -47,7 +47,7 @@ func (q *Queries) CreateSnapshot(ctx context.Context, arg CreateSnapshotParams) 
 		&i.ID,
 		&i.MonitorID,
 		&i.CheckedAt,
-		&i.IsUp,
+		&i.Alive,
 		&i.StatusCode,
 		&i.ResponseTimeMs,
 		&i.ResponseSize,
@@ -57,21 +57,22 @@ func (q *Queries) CreateSnapshot(ctx context.Context, arg CreateSnapshotParams) 
 	return i, err
 }
 
-const getSnapshotsByWebsiteID = `-- name: GetSnapshotsByWebsiteID :many
-SELECT id, monitor_id, checked_at, is_up, status_code, response_time_ms, response_size, server_name, ssl_expires_at
+const getSnapshotsByMonitorID = `-- name: GetSnapshotsByMonitorID :many
+SELECT id, monitor_id, checked_at, alive, status_code, response_time_ms, response_size, server_name, ssl_expires_at
 FROM snapshots
 WHERE monitor_id = $1
 ORDER BY checked_at DESC
-LIMIT $2
+LIMIT $2 OFFSET $3
 `
 
-type GetSnapshotsByWebsiteIDParams struct {
+type GetSnapshotsByMonitorIDParams struct {
 	MonitorID uuid.UUID
 	Limit     int32
+	Offset    int32
 }
 
-func (q *Queries) GetSnapshotsByWebsiteID(ctx context.Context, arg GetSnapshotsByWebsiteIDParams) ([]Snapshot, error) {
-	rows, err := q.db.Query(ctx, getSnapshotsByWebsiteID, arg.MonitorID, arg.Limit)
+func (q *Queries) GetSnapshotsByMonitorID(ctx context.Context, arg GetSnapshotsByMonitorIDParams) ([]Snapshot, error) {
+	rows, err := q.db.Query(ctx, getSnapshotsByMonitorID, arg.MonitorID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +84,7 @@ func (q *Queries) GetSnapshotsByWebsiteID(ctx context.Context, arg GetSnapshotsB
 			&i.ID,
 			&i.MonitorID,
 			&i.CheckedAt,
-			&i.IsUp,
+			&i.Alive,
 			&i.StatusCode,
 			&i.ResponseTimeMs,
 			&i.ResponseSize,
