@@ -2,9 +2,12 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/korjeek/pinger/backend/internal/dto"
+	"github.com/korjeek/pinger/backend/internal/storage/postgres"
 	"github.com/korjeek/pinger/backend/internal/usecase"
 	"github.com/oapi-codegen/runtime/types"
 )
@@ -21,8 +24,11 @@ func (h *Handler) CreateUser(ctx context.Context, request CreateUserRequestObjec
 	}
 
 	output, err := h.us.CreateUser(ctx, input)
-	if err != nil {
-		return nil, err
+	if errors.As(err, new(*postgres.ErrDatabase)) {
+		return CreateUser409JSONResponse{
+			Code:    strconv.Itoa(http.StatusConflict),
+			Message: err.Error(),
+		}, nil
 	}
 
 	return CreateUser201JSONResponse{

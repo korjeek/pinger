@@ -1,9 +1,14 @@
 package domain
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/google/uuid"
+)
+
+var (
+	ErrFailedGenerateUUID = errors.New("failed to generate UUIDv7")
 )
 
 type User struct {

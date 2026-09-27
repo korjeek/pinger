@@ -39,16 +39,16 @@ type UserService struct {
 func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserInput) (res dto.CreateUserOutput, err error) {
 	passwordHash, err := s.pwHasher.Hash(input.Password)
 	if err != nil {
-		return res, fmt.Errorf("hash password: %w", err)
+		return res, err
 	}
 
 	user, err := domain.NewUser(input.Email, passwordHash)
 	if err != nil {
-		return res, fmt.Errorf("create domain user: %w", err)
+		return res, err
 	}
 
 	if err = s.user.CreateUser(ctx, *user); err != nil {
-		return res, fmt.Errorf("db create user: %w", err)
+		return res, err
 	}
 
 	return dto.CreateUserOutput{
