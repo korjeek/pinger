@@ -50,8 +50,20 @@ type AuthResponse struct {
 
 // ErrorResponse defines model for ErrorResponse.
 type ErrorResponse struct {
-	Code    string `json:"code"`
+	// Code Stable, machine-readable error code — switch on this, not on the HTTP status text.
+	Code string `json:"code"`
+
+	// Details Optional structured context, e.g. which fields failed validation and why. Omitted when there's nothing more specific to add.
+	Details *map[string]interface{} `json:"details,omitempty"`
+
+	// Message Human-readable explanation, safe to display or log.
 	Message string `json:"message"`
+
+	// Timestamp When the server produced this error.
+	Timestamp *time.Time `json:"timestamp,omitempty"`
+
+	// TraceId Correlates this response with the matching server-side log entry. Include it when reporting a bug.
+	TraceId *string `json:"traceId,omitempty"`
 }
 
 // LoginRequest defines model for LoginRequest.
@@ -112,6 +124,24 @@ type UserUpdateRequest struct {
 	Email    *openapi_types.Email `json:"email,omitempty"`
 	Password *string              `json:"password,omitempty"`
 }
+
+// BadRequestError defines model for BadRequestError.
+type BadRequestError = ErrorResponse
+
+// ConflictError defines model for ConflictError.
+type ConflictError = ErrorResponse
+
+// ForbiddenError defines model for ForbiddenError.
+type ForbiddenError = ErrorResponse
+
+// InternalServerError defines model for InternalServerError.
+type InternalServerError = ErrorResponse
+
+// NotFoundError defines model for NotFoundError.
+type NotFoundError = ErrorResponse
+
+// UnauthorizedError defines model for UnauthorizedError.
+type UnauthorizedError = ErrorResponse
 
 // OauthCallbackParams defines parameters for OauthCallback.
 type OauthCallbackParams struct {
@@ -443,6 +473,18 @@ func RegisterHandlersWithOptions(router EchoRouter, si ServerInterface, options 
 
 }
 
+type BadRequestErrorJSONResponse ErrorResponse
+
+type ConflictErrorJSONResponse ErrorResponse
+
+type ForbiddenErrorJSONResponse ErrorResponse
+
+type InternalServerErrorJSONResponse ErrorResponse
+
+type NotFoundErrorJSONResponse ErrorResponse
+
+type UnauthorizedErrorJSONResponse ErrorResponse
+
 type OauthCallbackRequestObject struct {
 	Provider OauthCallbackParamsProvider `json:"provider"`
 	Params   OauthCallbackParams
@@ -476,7 +518,7 @@ func (response OauthCallback200JSONResponse) VisitOauthCallbackResponse(w http.R
 	return err
 }
 
-type OauthCallback400JSONResponse ErrorResponse
+type OauthCallback400JSONResponse struct{ BadRequestErrorJSONResponse }
 
 func (response OauthCallback400JSONResponse) VisitOauthCallbackResponse(w http.ResponseWriter) error {
 
@@ -490,7 +532,7 @@ func (response OauthCallback400JSONResponse) VisitOauthCallbackResponse(w http.R
 	return err
 }
 
-type OauthCallback401JSONResponse ErrorResponse
+type OauthCallback401JSONResponse struct{ UnauthorizedErrorJSONResponse }
 
 func (response OauthCallback401JSONResponse) VisitOauthCallbackResponse(w http.ResponseWriter) error {
 
@@ -500,6 +542,22 @@ func (response OauthCallback401JSONResponse) VisitOauthCallbackResponse(w http.R
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type OauthCallback500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response OauthCallback500JSONResponse) VisitOauthCallbackResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -536,7 +594,21 @@ func (response LoginUser200JSONResponse) VisitLoginUserResponse(w http.ResponseW
 	return err
 }
 
-type LoginUser401JSONResponse ErrorResponse
+type LoginUser400JSONResponse struct{ BadRequestErrorJSONResponse }
+
+func (response LoginUser400JSONResponse) VisitLoginUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LoginUser401JSONResponse struct{ UnauthorizedErrorJSONResponse }
 
 func (response LoginUser401JSONResponse) VisitLoginUserResponse(w http.ResponseWriter) error {
 
@@ -546,6 +618,22 @@ func (response LoginUser401JSONResponse) VisitLoginUserResponse(w http.ResponseW
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LoginUser500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response LoginUser500JSONResponse) VisitLoginUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -573,7 +661,7 @@ func (response LogoutUser204Response) VisitLogoutUserResponse(w http.ResponseWri
 	return nil
 }
 
-type LogoutUser401JSONResponse ErrorResponse
+type LogoutUser401JSONResponse struct{ UnauthorizedErrorJSONResponse }
 
 func (response LogoutUser401JSONResponse) VisitLogoutUserResponse(w http.ResponseWriter) error {
 
@@ -583,6 +671,22 @@ func (response LogoutUser401JSONResponse) VisitLogoutUserResponse(w http.Respons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type LogoutUser500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response LogoutUser500JSONResponse) VisitLogoutUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -632,6 +736,22 @@ func (response RefreshToken401JSONResponse) VisitRefreshTokenResponse(w http.Res
 	return err
 }
 
+type RefreshToken500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response RefreshToken500JSONResponse) VisitRefreshTokenResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
 type GetMonitorsRequestObject struct {
 	Params GetMonitorsParams
 }
@@ -654,7 +774,21 @@ func (response GetMonitors200JSONResponse) VisitGetMonitorsResponse(w http.Respo
 	return err
 }
 
-type GetMonitors401JSONResponse ErrorResponse
+type GetMonitors400JSONResponse struct{ BadRequestErrorJSONResponse }
+
+func (response GetMonitors400JSONResponse) VisitGetMonitorsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMonitors401JSONResponse struct{ UnauthorizedErrorJSONResponse }
 
 func (response GetMonitors401JSONResponse) VisitGetMonitorsResponse(w http.ResponseWriter) error {
 
@@ -664,6 +798,22 @@ func (response GetMonitors401JSONResponse) VisitGetMonitorsResponse(w http.Respo
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetMonitors500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetMonitors500JSONResponse) VisitGetMonitorsResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -690,7 +840,21 @@ func (response CreateMonitor201JSONResponse) VisitCreateMonitorResponse(w http.R
 	return err
 }
 
-type CreateMonitor401JSONResponse ErrorResponse
+type CreateMonitor400JSONResponse struct{ BadRequestErrorJSONResponse }
+
+func (response CreateMonitor400JSONResponse) VisitCreateMonitorResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateMonitor401JSONResponse struct{ UnauthorizedErrorJSONResponse }
 
 func (response CreateMonitor401JSONResponse) VisitCreateMonitorResponse(w http.ResponseWriter) error {
 
@@ -700,6 +864,22 @@ func (response CreateMonitor401JSONResponse) VisitCreateMonitorResponse(w http.R
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(401)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateMonitor500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateMonitor500JSONResponse) VisitCreateMonitorResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -720,7 +900,21 @@ func (response DeleteMonitor204Response) VisitDeleteMonitorResponse(w http.Respo
 	return nil
 }
 
-type DeleteMonitor401JSONResponse ErrorResponse
+type DeleteMonitor400JSONResponse struct{ BadRequestErrorJSONResponse }
+
+func (response DeleteMonitor400JSONResponse) VisitDeleteMonitorResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteMonitor401JSONResponse struct{ UnauthorizedErrorJSONResponse }
 
 func (response DeleteMonitor401JSONResponse) VisitDeleteMonitorResponse(w http.ResponseWriter) error {
 
@@ -734,7 +928,7 @@ func (response DeleteMonitor401JSONResponse) VisitDeleteMonitorResponse(w http.R
 	return err
 }
 
-type DeleteMonitor403JSONResponse ErrorResponse
+type DeleteMonitor403JSONResponse struct{ ForbiddenErrorJSONResponse }
 
 func (response DeleteMonitor403JSONResponse) VisitDeleteMonitorResponse(w http.ResponseWriter) error {
 
@@ -748,7 +942,7 @@ func (response DeleteMonitor403JSONResponse) VisitDeleteMonitorResponse(w http.R
 	return err
 }
 
-type DeleteMonitor404JSONResponse ErrorResponse
+type DeleteMonitor404JSONResponse struct{ NotFoundErrorJSONResponse }
 
 func (response DeleteMonitor404JSONResponse) VisitDeleteMonitorResponse(w http.ResponseWriter) error {
 
@@ -758,6 +952,22 @@ func (response DeleteMonitor404JSONResponse) VisitDeleteMonitorResponse(w http.R
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type DeleteMonitor500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response DeleteMonitor500JSONResponse) VisitDeleteMonitorResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -785,7 +995,21 @@ func (response UpdateMonitor200JSONResponse) VisitUpdateMonitorResponse(w http.R
 	return err
 }
 
-type UpdateMonitor401JSONResponse ErrorResponse
+type UpdateMonitor400JSONResponse struct{ BadRequestErrorJSONResponse }
+
+func (response UpdateMonitor400JSONResponse) VisitUpdateMonitorResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateMonitor401JSONResponse struct{ UnauthorizedErrorJSONResponse }
 
 func (response UpdateMonitor401JSONResponse) VisitUpdateMonitorResponse(w http.ResponseWriter) error {
 
@@ -799,7 +1023,7 @@ func (response UpdateMonitor401JSONResponse) VisitUpdateMonitorResponse(w http.R
 	return err
 }
 
-type UpdateMonitor403JSONResponse ErrorResponse
+type UpdateMonitor403JSONResponse struct{ ForbiddenErrorJSONResponse }
 
 func (response UpdateMonitor403JSONResponse) VisitUpdateMonitorResponse(w http.ResponseWriter) error {
 
@@ -813,7 +1037,7 @@ func (response UpdateMonitor403JSONResponse) VisitUpdateMonitorResponse(w http.R
 	return err
 }
 
-type UpdateMonitor404JSONResponse ErrorResponse
+type UpdateMonitor404JSONResponse struct{ NotFoundErrorJSONResponse }
 
 func (response UpdateMonitor404JSONResponse) VisitUpdateMonitorResponse(w http.ResponseWriter) error {
 
@@ -823,6 +1047,22 @@ func (response UpdateMonitor404JSONResponse) VisitUpdateMonitorResponse(w http.R
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateMonitor500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateMonitor500JSONResponse) VisitUpdateMonitorResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -850,7 +1090,21 @@ func (response GetSnapshotsByMonitorID200JSONResponse) VisitGetSnapshotsByMonito
 	return err
 }
 
-type GetSnapshotsByMonitorID401JSONResponse ErrorResponse
+type GetSnapshotsByMonitorID400JSONResponse struct{ BadRequestErrorJSONResponse }
+
+func (response GetSnapshotsByMonitorID400JSONResponse) VisitGetSnapshotsByMonitorIDResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshotsByMonitorID401JSONResponse struct{ UnauthorizedErrorJSONResponse }
 
 func (response GetSnapshotsByMonitorID401JSONResponse) VisitGetSnapshotsByMonitorIDResponse(w http.ResponseWriter) error {
 
@@ -864,7 +1118,7 @@ func (response GetSnapshotsByMonitorID401JSONResponse) VisitGetSnapshotsByMonito
 	return err
 }
 
-type GetSnapshotsByMonitorID403JSONResponse ErrorResponse
+type GetSnapshotsByMonitorID403JSONResponse struct{ ForbiddenErrorJSONResponse }
 
 func (response GetSnapshotsByMonitorID403JSONResponse) VisitGetSnapshotsByMonitorIDResponse(w http.ResponseWriter) error {
 
@@ -878,7 +1132,7 @@ func (response GetSnapshotsByMonitorID403JSONResponse) VisitGetSnapshotsByMonito
 	return err
 }
 
-type GetSnapshotsByMonitorID404JSONResponse ErrorResponse
+type GetSnapshotsByMonitorID404JSONResponse struct{ NotFoundErrorJSONResponse }
 
 func (response GetSnapshotsByMonitorID404JSONResponse) VisitGetSnapshotsByMonitorIDResponse(w http.ResponseWriter) error {
 
@@ -888,6 +1142,22 @@ func (response GetSnapshotsByMonitorID404JSONResponse) VisitGetSnapshotsByMonito
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type GetSnapshotsByMonitorID500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response GetSnapshotsByMonitorID500JSONResponse) VisitGetSnapshotsByMonitorIDResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -914,7 +1184,21 @@ func (response CreateUser201JSONResponse) VisitCreateUserResponse(w http.Respons
 	return err
 }
 
-type CreateUser409JSONResponse ErrorResponse
+type CreateUser400JSONResponse struct{ BadRequestErrorJSONResponse }
+
+func (response CreateUser400JSONResponse) VisitCreateUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateUser409JSONResponse struct{ ConflictErrorJSONResponse }
 
 func (response CreateUser409JSONResponse) VisitCreateUserResponse(w http.ResponseWriter) error {
 
@@ -924,6 +1208,22 @@ func (response CreateUser409JSONResponse) VisitCreateUserResponse(w http.Respons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type CreateUser500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response CreateUser500JSONResponse) VisitCreateUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }
@@ -951,7 +1251,21 @@ func (response UpdateUser200JSONResponse) VisitUpdateUserResponse(w http.Respons
 	return err
 }
 
-type UpdateUser401JSONResponse ErrorResponse
+type UpdateUser400JSONResponse struct{ BadRequestErrorJSONResponse }
+
+func (response UpdateUser400JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(400)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateUser401JSONResponse struct{ UnauthorizedErrorJSONResponse }
 
 func (response UpdateUser401JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
 
@@ -965,7 +1279,7 @@ func (response UpdateUser401JSONResponse) VisitUpdateUserResponse(w http.Respons
 	return err
 }
 
-type UpdateUser403JSONResponse ErrorResponse
+type UpdateUser403JSONResponse struct{ ForbiddenErrorJSONResponse }
 
 func (response UpdateUser403JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
 
@@ -979,7 +1293,21 @@ func (response UpdateUser403JSONResponse) VisitUpdateUserResponse(w http.Respons
 	return err
 }
 
-type UpdateUser409JSONResponse ErrorResponse
+type UpdateUser404JSONResponse struct{ NotFoundErrorJSONResponse }
+
+func (response UpdateUser404JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(404)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateUser409JSONResponse struct{ ConflictErrorJSONResponse }
 
 func (response UpdateUser409JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
 
@@ -989,6 +1317,22 @@ func (response UpdateUser409JSONResponse) VisitUpdateUserResponse(w http.Respons
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(409)
+	_, err := buf.WriteTo(w)
+	return err
+}
+
+type UpdateUser500JSONResponse struct {
+	InternalServerErrorJSONResponse
+}
+
+func (response UpdateUser500JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
+
+	var buf bytes.Buffer
+	if err := json.NewEncoder(&buf).Encode(response); err != nil {
+		return err
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(500)
 	_, err := buf.WriteTo(w)
 	return err
 }

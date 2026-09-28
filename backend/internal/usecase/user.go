@@ -2,10 +2,11 @@ package usecase
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/korjeek/pinger/backend/internal/domain"
 	"github.com/korjeek/pinger/backend/internal/dto"
+	"github.com/korjeek/pinger/backend/pkg/apperr"
 )
 
 type UserRepository interface {
@@ -13,78 +14,34 @@ type UserRepository interface {
 	GetUserByEmail(ctx context.Context, email string) (domain.User, error)
 }
 
-type SessionRepository interface {
-	CreateSession(ctx context.Context, session domain.Session) error
-}
-
 type PasswordHasher interface {
 	Hash(password string) (string, error)
 	Equals(hashedPassword, password string) bool
 }
 
-type TokenHasher interface {
-	Hash(string) ([]byte, error)
-}
-
 type UserService struct {
-	user    UserRepository
-	session SessionRepository
-
-	generator TokenGenerator
-
-	pwHasher    PasswordHasher
-	tokenHasher TokenHasher
+	user     UserRepository
+	pwHasher PasswordHasher
 }
 
-func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserInput) (res dto.CreateUserOutput, err error) {
+func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserInput) (dto.CreateUserOutput, error) {
 	passwordHash, err := s.pwHasher.Hash(input.Password)
 	if err != nil {
-		return res, err
+		return dto.CreateUserOutput{}, apperr.Internal(err)
 	}
 
-	user, err := domain.NewUser(input.Email, passwordHash)
+	id, err := uuid.NewV7()
 	if err != nil {
-		return res, err
+		return dto.CreateUserOutput{}, apperr.Internal(err)
 	}
 
+	user := domain.NewUser(id, input.Email, passwordHash)
 	if err = s.user.CreateUser(ctx, *user); err != nil {
-		return res, err
+		return dto.CreateUserOutput{}, err
 	}
 
 	return dto.CreateUserOutput{
 		Id:    user.ID,
 		Email: user.Email,
 	}, nil
-}
-
-func (s *UserService) LoginUser(ctx context.Context, input dto.LoginUserInput) (pair dto.TokenPair, err error) {
-	user, err := s.user.GetUserByEmail(ctx, input.Email)
-	if err != nil {
-		return pair, err
-	}
-
-	if !s.pwHasher.Equals(user.PasswordHash, input.Password) {
-		return pair, fmt.Errorf("invalid password")
-	}
-
-	tokens, err := s.generator.GenerateTokenPair(user.ID)
-	if err != nil {
-		return pair, err
-	}
-
-	tokenHash, err := s.tokenHasher.Hash(tokens.RefreshToken.Payload)
-	if err != nil {
-		return pair, err
-	}
-
-	session, err := domain.NewSession(user.ID, tokenHash, tokens.RefreshToken.ExpiresAt)
-	if err != nil {
-		return pair, err
-	}
-
-	if err = s.session.CreateSession(ctx, *session); err != nil {
-		return pair, err
-	}
-
-	return tokens, nil
 }

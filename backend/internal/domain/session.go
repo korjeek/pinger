@@ -1,7 +1,6 @@
 package domain
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,16 +13,11 @@ type Session struct {
 	ExpiresAt time.Time
 }
 
-func NewSession(userId uuid.UUID, tokenHash []byte, expiresAt time.Time) (*Session, error) {
-	id, err := uuid.NewV7()
-	if err != nil {
-		return nil, fmt.Errorf("new session: %w", err)
-	}
-
+func NewSession(id, userId uuid.UUID, tokenHash []byte, expiresAt time.Time) *Session {
 	return &Session{
 		ID:        id,
 		UserID:    userId,
 		TokenHash: tokenHash,
 		ExpiresAt: expiresAt,
-	}, nil
+	}
 }

@@ -34,12 +34,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '409':
-          description: User already exists
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /user/{id}:
     patch:
@@ -73,24 +73,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
-          description: Unauthorized (missing or invalid access token)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/UnauthorizedError'
         '403':
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
         '409':
-          description: Email or username already exists
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /auth/login:
     post:
@@ -119,12 +113,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
-          description: Invalid email or password supplied
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /auth/refresh:
     post:
@@ -148,11 +142,16 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
         '401':
+          # Kept inline on purpose, not $ref'd: this text carries a specific
+          # security instruction (treat reuse of a rotated token as theft)
+          # that the generic UnauthorizedError description would lose.
           description: Refresh token missing, expired, revoked, or already used (possible theft — treat all sessions for this user as compromised)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /auth/logout:
     post:
@@ -172,11 +171,9 @@ paths:
               schema:
                 type: string
         '401':
-          description: Refresh token missing or invalid
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /auth/callback/{provider}:
     get:
@@ -220,17 +217,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
         '400':
-          description: Invalid, expired, or already-used authorization code
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/BadRequestError'
         '401':
-          description: State mismatch or provider rejected the request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /monitors:
     post:
@@ -254,12 +245,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MonitorResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     get:
       tags:
@@ -299,12 +290,12 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/MonitorResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/UnauthorizedError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /monitors/{id}:
     patch:
@@ -340,24 +331,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MonitorResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
-          description: Unauthorized (Missing or invalid token)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/UnauthorizedError'
         '403':
-          description: Forbidden (You do not own this monitor)
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/ForbiddenError'
         '404':
-          description: Monitor not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
     delete:
       tags:
@@ -380,24 +363,16 @@ paths:
       responses:
         '204':
           description: Monitor successfully deleted
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/UnauthorizedError'
         '403':
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/ForbiddenError'
         '404':
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
   /monitors/{id}/snapshots:
     get:
@@ -446,26 +421,56 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/SnapshotResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
         '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/UnauthorizedError'
         '403':
-          description: Forbidden
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/ForbiddenError'
         '404':
-          description: Not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
+          $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
 
 components:
+  responses:
+    BadRequestError:
+      description: The request was malformed or failed validation.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnauthorizedError:
+      description: Missing, invalid, or expired credentials.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ForbiddenError:
+      description: Authenticated, but not permitted to perform this action.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFoundError:
+      description: The requested resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    ConflictError:
+      description: The request conflicts with the current state of the resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: An unexpected error occurred while processing the request.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
   schemas:
     UserCreateRequest:
       type: object
@@ -664,10 +669,25 @@ components:
       properties:
         code:
           type: string
+          description: Stable, machine-readable error code — switch on this, not on the HTTP status text.
           example: "BAD_REQUEST"
         message:
           type: string
+          description: Human-readable explanation, safe to display or log.
           example: "Error message details"
+        details:
+          type: object
+          additionalProperties: true
+          description: Optional structured context, e.g. which fields failed validation and why. Omitted when there's nothing more specific to add.
+        timestamp:
+          type: string
+          format: date-time
+          description: When the server produced this error.
+          example: "2026-09-27T10:15:00Z"
+        traceId:
+          type: string
+          description: Correlates this response with the matching server-side log entry. Include it when reporting a bug.
+          example: "b3d1e6b0-6e2a-4b8b-9c3e-0a1f2b3c4d5e"
 
   securitySchemes:
     BearerAuth:

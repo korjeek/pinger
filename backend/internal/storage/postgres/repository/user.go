@@ -9,7 +9,11 @@ import (
 )
 
 type PgUserRepository struct {
-	queries db.Queries
+	queries *db.Queries
+}
+
+func NewPgUserRepository(queries *db.Queries) *PgUserRepository {
+	return &PgUserRepository{queries: queries}
 }
 
 func (r *PgUserRepository) CreateUser(ctx context.Context, user domain.User) error {
@@ -19,13 +23,13 @@ func (r *PgUserRepository) CreateUser(ctx context.Context, user domain.User) err
 		PasswordHash: user.PasswordHash,
 	})
 
-	return postgres.NewErrDatabase(err)
+	return postgres.FromPgError(err)
 }
 
 func (r *PgUserRepository) GetUserByEmail(ctx context.Context, email string) (user domain.User, err error) {
 	dbUser, err := r.queries.GetUserByEmail(ctx, email)
 	if err != nil {
-		return user, postgres.NewErrDatabase(err)
+		return user, postgres.FromPgError(err)
 	}
 
 	return domain.User(dbUser), nil

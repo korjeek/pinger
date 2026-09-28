@@ -2,18 +2,17 @@ package api
 
 import (
 	"context"
-	"errors"
 	"net/http"
-	"strconv"
+	"time"
 
 	"github.com/korjeek/pinger/backend/internal/dto"
-	"github.com/korjeek/pinger/backend/internal/storage/postgres"
 	"github.com/korjeek/pinger/backend/internal/usecase"
 	"github.com/oapi-codegen/runtime/types"
 )
 
 type Handler struct {
-	us usecase.UserService
+	userService usecase.UserService
+	authService usecase.AuthService
 }
 
 func (h *Handler) CreateUser(ctx context.Context, request CreateUserRequestObject) (CreateUserResponseObject, error) {
@@ -23,12 +22,9 @@ func (h *Handler) CreateUser(ctx context.Context, request CreateUserRequestObjec
 		Password: body.Password,
 	}
 
-	output, err := h.us.CreateUser(ctx, input)
-	if errors.As(err, new(*postgres.ErrDatabase)) {
-		return CreateUser409JSONResponse{
-			Code:    strconv.Itoa(http.StatusConflict),
-			Message: err.Error(),
-		}, nil
+	output, err := h.userService.CreateUser(ctx, input)
+	if err != nil {
+		return nil, err
 	}
 
 	return CreateUser201JSONResponse{
@@ -44,7 +40,7 @@ func (h *Handler) LoginUser(ctx context.Context, request LoginUserRequestObject)
 		Password: body.Password,
 	}
 
-	pair, err := h.us.LoginUser(ctx, input)
+	pair, err := h.authService.LoginUser(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -66,10 +62,41 @@ func (h *Handler) LoginUser(ctx context.Context, request LoginUserRequestObject)
 		Body: AuthResponse{
 			AccessToken: access.Payload,
 			TokenType:   "Bearer",
-			ExpiresIn:   nil,
+			ExpiresIn:   new(int(time.Until(pair.AccessToken.ExpiresAt).Seconds())),
 		},
 		Headers: LoginUser200ResponseHeaders{
 			SetCookie: new(cookie.String()),
 		},
+	}, nil
+}
+
+func (h *Handler) LogoutUser(ctx context.Context, request LogoutUserRequestObject) (LogoutUserResponseObject, error) {
+	cookie := &http.Cookie{
+		Name:     "refresh_token",
+		Value:    "",
+		Path:     "/api/auth",
+		MaxAge:   -1,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	}
+
+	return LogoutUser204Response{
+		Headers: LogoutUser204ResponseHeaders{
+			SetCookie: new(cookie.String()),
+		},
+	}, nil
+}
+
+func (h *Handler) RefreshToken(ctx context.Context, request RefreshTokenRequestObject) (RefreshTokenResponseObject, error) {
+	return RefreshToken200JSONResponse{
+		Body: AuthResponse{
+			AccessToken: "",
+			ExpiresIn:   nil,
+			TokenType:   "",
+		},
+		Headers: RefreshToken200ResponseHeaders{
+			SetCookie: ,
+		}
 	}, nil
 }
