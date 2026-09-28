@@ -20,21 +20,20 @@ const (
 type Error struct {
 	Code    Code
 	Message string
-	Status  int
 	Details map[string]any
 
-	cause error
+	Cause error
 }
 
 func (e *Error) Error() string {
-	if e.cause != nil {
-		return fmt.Sprintf("%s: %s: %v", e.Code, e.Message, e.cause)
+	if e.Cause != nil {
+		return fmt.Sprintf("%s: %s: %v", e.Code, e.Message, e.Cause)
 	}
 	return fmt.Sprintf("%s: %s", e.Code, e.Message)
 }
 
 func (e *Error) Unwrap() error {
-	return e.cause
+	return e.Cause
 }
 
 func (e *Error) Is(target error) bool {
@@ -48,7 +47,7 @@ func (e *Error) Is(target error) bool {
 
 func (e *Error) WithCause(err error) *Error {
 	cp := *e
-	cp.cause = err
+	cp.Cause = err
 	return &cp
 }
 
