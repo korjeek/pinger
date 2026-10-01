@@ -10,8 +10,8 @@ import (
 )
 
 type UserRepository interface {
-	CreateUser(ctx context.Context, user domain.User) error
-	GetUserByEmail(ctx context.Context, email string) (domain.User, error)
+	Create(ctx context.Context, user domain.User) error
+	GetByEmail(ctx context.Context, email string) (domain.User, error)
 }
 
 type PasswordHasher interface {
@@ -25,19 +25,24 @@ type UserService struct {
 }
 
 func (s *UserService) CreateUser(ctx context.Context, input dto.CreateUserInput) (dto.CreateUserOutput, error) {
+	var output dto.CreateUserOutput
+
 	passwordHash, err := s.pwHasher.Hash(input.Password)
 	if err != nil {
-		return dto.CreateUserOutput{}, apperr.Internal(err)
+		return output, apperr.NewUndefined(err).
+			WithMessage("failed to process user security credentials").
+			WithDetail("email", input.Email)
 	}
 
 	id, err := uuid.NewV7()
 	if err != nil {
-		return dto.CreateUserOutput{}, apperr.Internal(err)
+		return output, apperr.NewUndefined(err).
+			WithMessage("failed to generate unique user identifier")
 	}
 
 	user := domain.NewUser(id, input.Email, passwordHash)
-	if err = s.user.CreateUser(ctx, *user); err != nil {
-		return dto.CreateUserOutput{}, err
+	if err = s.user.Create(ctx, user); err != nil {
+		return output, err
 	}
 
 	return dto.CreateUserOutput{

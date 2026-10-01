@@ -7,9 +7,9 @@ package db
 
 import (
 	"context"
+	"time"
 
 	uuid "github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const createSession = `-- name: CreateSession :exec
@@ -21,7 +21,7 @@ type CreateSessionParams struct {
 	ID        uuid.UUID
 	UserID    uuid.UUID
 	TokenHash []byte
-	ExpiresAt pgtype.Timestamptz
+	ExpiresAt time.Time
 }
 
 func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) error {
@@ -40,7 +40,7 @@ WHERE expires_at < now()
    OR (revoked_at IS NOT NULL AND revoked_at < $1)
 `
 
-func (q *Queries) DeleteExpiredSessions(ctx context.Context, revokedAt pgtype.Timestamptz) error {
+func (q *Queries) DeleteExpiredSessions(ctx context.Context, revokedAt *time.Time) error {
 	_, err := q.db.Exec(ctx, deleteExpiredSessions, revokedAt)
 	return err
 }
@@ -96,7 +96,7 @@ WHERE id = $1
 
 type RotateSessionParams struct {
 	ID         uuid.UUID
-	ReplacedBy pgtype.UUID
+	ReplacedBy *uuid.UUID
 }
 
 func (q *Queries) RotateSession(ctx context.Context, arg RotateSessionParams) error {

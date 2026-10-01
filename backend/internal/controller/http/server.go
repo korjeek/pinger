@@ -1,9 +1,11 @@
-package api
+package http
 
 import (
 	"log/slog"
 	"net/http"
 
+	api2 "github.com/korjeek/pinger/backend/internal/controller/http/api"
+	mdl "github.com/korjeek/pinger/backend/internal/controller/http/middleware"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -18,12 +20,10 @@ type ServerConfig struct {
 	CookieSecure bool
 }
 
-func NewServer(cfg ServerConfig, impl StrictServerInterface) *echo.Echo {
+func NewServer(cfg ServerConfig, impl api2.StrictServerInterface) *echo.Echo {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
-
-	e.HTTPErrorHandler = HTTPErrorHandler(cfg.Logger)
 
 	e.Use(middleware.Recover())
 	e.Use(TraceIDMiddleware())
@@ -56,7 +56,8 @@ func NewServer(cfg ServerConfig, impl StrictServerInterface) *echo.Echo {
 		"getSnapshotsByMonitorID": {auth},
 	}
 
-	strictMW := []StrictMiddlewareFunc{
+	strictMW := []api2.StrictMiddlewareFunc{
+		mdl.StrictErrorMiddleware,
 		RefreshCookieWriterMiddleware(cookieConfig{
 			Path:     cfg.CookiePath,
 			Domain:   cfg.CookieDomain,
@@ -65,9 +66,9 @@ func NewServer(cfg ServerConfig, impl StrictServerInterface) *echo.Echo {
 		}),
 	}
 
-	handler := NewStrictHandler(impl, strictMW)
+	handler := api2.NewStrictHandler(impl, strictMW)
 
-	RegisterHandlersWithOptions(e, handler, RegisterHandlersOptions{
+	api2.RegisterHandlersWithOptions(e, handler, api2.RegisterHandlersOptions{
 		BaseURL:              "/api",
 		OperationMiddlewares: opMW,
 	})

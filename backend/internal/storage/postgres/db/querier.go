@@ -6,9 +6,9 @@ package db
 
 import (
 	"context"
+	"time"
 
 	uuid "github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -16,7 +16,7 @@ type Querier interface {
 	CreateSession(ctx context.Context, arg CreateSessionParams) error
 	CreateSnapshot(ctx context.Context, arg CreateSnapshotParams) (Snapshot, error)
 	CreateUser(ctx context.Context, arg CreateUserParams) error
-	DeleteExpiredSessions(ctx context.Context, revokedAt pgtype.Timestamptz) error
+	DeleteExpiredSessions(ctx context.Context, revokedAt *time.Time) error
 	DeleteMonitor(ctx context.Context, id uuid.UUID) error
 	DeleteUser(ctx context.Context, id uuid.UUID) error
 	GetMonitorByUserID(ctx context.Context, arg GetMonitorByUserIDParams) ([]Monitor, error)

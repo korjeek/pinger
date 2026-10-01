@@ -19,6 +19,14 @@ sql:
               package: "uuid"
               type: "UUID"
 
+          - db_type: "uuid"
+            nullable: true
+            go_type:
+              import: "github.com/google/uuid"
+              package: "uuid"
+              type: "UUID"
+              pointer: true
+
           - db_type: "pg_catalog.timestamptz"
             nullable: false
             go_type:
@@ -27,4 +35,5 @@ sql:
           - db_type: "pg_catalog.timestamptz"
             nullable: true
             go_type:
-              type: "*time.Time"
+              type: "time.Time"
+              pointer: true

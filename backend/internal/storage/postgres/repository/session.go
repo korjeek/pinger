@@ -2,12 +2,16 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/korjeek/pinger/backend/internal/domain"
-	"github.com/korjeek/pinger/backend/internal/storage/postgres"
 	"github.com/korjeek/pinger/backend/internal/storage/postgres/db"
+	"github.com/korjeek/pinger/backend/internal/storage/postgres/mapper"
+	"github.com/korjeek/pinger/backend/pkg/apperr"
 )
 
 type PgSessionRepository struct {
@@ -18,59 +22,83 @@ func NewPgSessionRepository(queries *db.Queries) *PgSessionRepository {
 	return &PgSessionRepository{queries: queries}
 }
 
-func (r *PgSessionRepository) CreateSession(ctx context.Context, session domain.Session) error {
-	err := r.queries.CreateSession(ctx, db.CreateSessionParams{
+func (r *PgSessionRepository) Create(ctx context.Context, session domain.Session) error {
+	if err := r.queries.CreateSession(ctx, db.CreateSessionParams{
 		ID:        session.ID,
 		UserID:    session.UserID,
 		TokenHash: session.TokenHash,
-		ExpiresAt: pgtype.Timestamptz{Time: session.ExpiresAt},
-	})
+		ExpiresAt: session.ExpiresAt,
+	}); err != nil {
+		if pgErr, ok := errors.AsType[*pgconn.PgError](err); ok && pgErr.Code == pgerrcode.UniqueViolation {
+			return apperr.NewAlreadyExists(err).
+				WithMessage("session already exists").
+				WithDetail("session_id", session.ID).
+				WithDetail("user_id", session.UserID)
+		}
+		return apperr.NewUndefined(err).
+			WithMessage("failed to create session").
+			WithDetail("user_id", session.UserID)
+	}
 
-	return postgres.FromPgError(err)
+	return nil
 }
 
-func (r *PgSessionRepository) GetSessionByHash(ctx context.Context, hash []byte) (domain.Session, error) {
-	session, err := r.queries.GetSessionByHash(ctx, hash)
+func (r *PgSessionRepository) GetByHash(ctx context.Context, hash []byte) (domain.Session, error) {
+	var session domain.Session
+
+	dbSess, err := r.queries.GetSessionByHash(ctx, hash)
 	if err != nil {
-		return domain.Session{}, postgres.FromPgError(err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return session, apperr.NewNotFound(err).
+				WithMessage("session not found by provided token hash")
+		}
+		return session, apperr.NewUndefined(err).
+			WithMessage("failed to get session by hash")
 	}
-	return fromSession(session), nil
+
+	return mapper.ToDomainSession(dbSess), nil
 }
 
-func (r *PgSessionRepository) RotateSession(ctx context.Context, oldID, newID uuid.UUID) error {
-	return r.queries.RotateSession(ctx, db.RotateSessionParams{
+func (r *PgSessionRepository) Rotate(ctx context.Context, oldID, newID uuid.UUID) error {
+	if err := r.queries.RotateSession(ctx, db.RotateSessionParams{
 		ID:         oldID,
-		ReplacedBy: pgtype.UUID{Bytes: newID, Valid: true},
-	})
+		ReplacedBy: &newID,
+	}); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apperr.NewNotFound(err).
+				WithMessage("target session for rotation not found").
+				WithDetail("old_session_id", oldID)
+		}
+		return apperr.NewUndefined(err).
+			WithMessage("failed to rotate session").
+			WithDetail("old_session_id", oldID).
+			WithDetail("new_session_id", newID)
+	}
+
+	return nil
 }
 
-func (r *PgSessionRepository) RevokeSession(ctx context.Context, id uuid.UUID) error {
-	return postgres.FromPgError(r.queries.RevokeSession(ctx, id))
+func (r *PgSessionRepository) Revoke(ctx context.Context, id uuid.UUID) error {
+	if err := r.queries.RevokeSession(ctx, id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apperr.NewNotFound(err).
+				WithMessage("session to revoke not found").
+				WithDetail("session_id", id)
+		}
+		return apperr.NewUndefined(err).
+			WithMessage("failed to revoke session").
+			WithDetail("session_id", id)
+	}
+
+	return nil
 }
 
-func (r *PgSessionRepository) RevokeAllUserSessions(ctx context.Context, userID uuid.UUID) error {
-	return postgres.FromPgError(r.queries.RevokeAllUserSessions(ctx, userID))
-}
-
-func fromSession(s db.Session) domain.Session {
-	out := domain.Session{
-		ID:        s.ID,
-		UserID:    s.UserID,
-		TokenHash: s.TokenHash,
+func (r *PgSessionRepository) RevokeAll(ctx context.Context, userID uuid.UUID) error {
+	if err := r.queries.RevokeAllUserSessions(ctx, userID); err != nil {
+		return apperr.NewUndefined(err).
+			WithMessage("failed to revoke all user sessions").
+			WithDetail("user_id", userID)
 	}
 
-	if s.IssuedAt.Valid {
-		out.IssuedAt = s.IssuedAt.Time
-	}
-	if s.ExpiresAt.Valid {
-		out.ExpiresAt = s.ExpiresAt.Time
-	}
-	if s.RevokedAt.Valid {
-		out.RevokedAt = &s.RevokedAt.Time
-	}
-	if s.ReplacedBy.Valid {
-		out.ReplacedBy = new(uuid.UUID(s.ReplacedBy.Bytes))
-	}
-
-	return out
+	return nil
 }

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	uuid "github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Monitor struct {
@@ -24,10 +23,10 @@ type Session struct {
 	ID         uuid.UUID
 	UserID     uuid.UUID
 	TokenHash  []byte
-	IssuedAt   pgtype.Timestamptz
-	ExpiresAt  pgtype.Timestamptz
-	RevokedAt  pgtype.Timestamptz
-	ReplacedBy pgtype.UUID
+	IssuedAt   time.Time
+	ExpiresAt  time.Time
+	RevokedAt  *time.Time
+	ReplacedBy *uuid.UUID
 }
 
 type Snapshot struct {

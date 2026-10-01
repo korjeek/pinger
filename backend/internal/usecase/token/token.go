@@ -1,8 +1,10 @@
-package usecase
+package token
 
 import (
 	"crypto/rand"
 	"encoding/base64"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -10,7 +12,13 @@ import (
 	"github.com/korjeek/pinger/backend/internal/dto"
 )
 
-type TokenGeneratorConfig struct {
+var (
+	ErrEmptySecret           = errors.New("access token secret cannot be empty")
+	ErrFailedToGenerateBytes = errors.New("failed to generate random bytes for refresh token")
+	ErrFailedToSignToken     = errors.New("failed to sign access token")
+)
+
+type GeneratorConfig struct {
 	ATC AccessTokenConfig
 	RTC RefreshTokenConfig
 }
@@ -28,7 +36,7 @@ type Clock interface {
 	Now() time.Time
 }
 
-type TokenGenerator struct {
+type Generator struct {
 	clock Clock
 
 	accessTokenSecret []byte
@@ -41,16 +49,20 @@ type AccessClaims struct {
 	jwt.RegisteredClaims
 }
 
-func NewTokenGenerator(cfg TokenGeneratorConfig, clock Clock) *TokenGenerator {
-	return &TokenGenerator{
+func NewGenerator(cfg GeneratorConfig, clock Clock) (*Generator, error) {
+	if len(cfg.ATC.Secret) == 0 {
+		return nil, ErrEmptySecret
+	}
+
+	return &Generator{
 		accessTokenSecret: cfg.ATC.Secret,
 		accessTokenTTL:    cfg.ATC.TTL,
 		refreshTokenTTL:   cfg.RTC.TTL,
 		clock:             clock,
-	}
+	}, nil
 }
 
-func (g *TokenGenerator) GenerateAccessToken(userId uuid.UUID) (dto.Token, error) {
+func (g *Generator) GenerateAccessToken(userId uuid.UUID) (dto.Token, error) {
 	now := g.clock.Now()
 	expiresAt := now.Add(g.accessTokenTTL)
 
@@ -64,6 +76,9 @@ func (g *TokenGenerator) GenerateAccessToken(userId uuid.UUID) (dto.Token, error
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	signedJWT, err := token.SignedString(g.accessTokenSecret)
+	if err != nil {
+		return dto.Token{}, fmt.Errorf("%w: %v", ErrFailedToSignToken, err)
+	}
 
 	return dto.Token{
 		Payload:   signedJWT,
@@ -71,12 +86,12 @@ func (g *TokenGenerator) GenerateAccessToken(userId uuid.UUID) (dto.Token, error
 	}, err
 }
 
-func (g *TokenGenerator) GenerateRefreshToken() (refToken dto.Token, error error) {
+func (g *Generator) GenerateRefreshToken() (refToken dto.Token, error error) {
 	now := g.clock.Now()
 	buf := make([]byte, 32)
 
 	if _, err := rand.Read(buf); err != nil {
-		return refToken, err
+		return dto.Token{}, fmt.Errorf("%w: %v", ErrFailedToGenerateBytes, err)
 	}
 
 	token := base64.RawURLEncoding.EncodeToString(buf)
@@ -86,7 +101,7 @@ func (g *TokenGenerator) GenerateRefreshToken() (refToken dto.Token, error error
 	}, nil
 }
 
-func (g *TokenGenerator) GenerateTokenPair(userId uuid.UUID) (pair dto.TokenPair, err error) {
+func (g *Generator) GenerateTokenPair(userId uuid.UUID) (pair dto.TokenPair, err error) {
 	accessToken, err := g.GenerateAccessToken(userId)
 	if err != nil {
 		return pair, err
