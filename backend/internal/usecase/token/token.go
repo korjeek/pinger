@@ -42,7 +42,7 @@ type Clock interface {
 	Now() time.Time
 }
 
-type Generator struct {
+type JWTTokenManager struct {
 	clock Clock
 
 	accessTokenSecret []byte
@@ -51,12 +51,12 @@ type Generator struct {
 	refreshTokenTTL time.Duration
 }
 
-func NewGenerator(cfg GeneratorConfig, clock Clock) (*Generator, error) {
+func NewGenerator(cfg GeneratorConfig, clock Clock) (*JWTTokenManager, error) {
 	if len(cfg.ATC.Secret) == 0 {
 		return nil, ErrEmptySecret
 	}
 
-	return &Generator{
+	return &JWTTokenManager{
 		accessTokenSecret: cfg.ATC.Secret,
 		accessTokenTTL:    cfg.ATC.TTL,
 		refreshTokenTTL:   cfg.RTC.TTL,
@@ -64,7 +64,7 @@ func NewGenerator(cfg GeneratorConfig, clock Clock) (*Generator, error) {
 	}, nil
 }
 
-func (g *Generator) GenerateAccessToken(userId uuid.UUID) (dto.Token, error) {
+func (g *JWTTokenManager) GenerateAccessToken(userId uuid.UUID) (dto.Token, error) {
 	now := g.clock.Now()
 	expiresAt := now.Add(g.accessTokenTTL)
 
@@ -88,7 +88,7 @@ func (g *Generator) GenerateAccessToken(userId uuid.UUID) (dto.Token, error) {
 	}, err
 }
 
-func (g *Generator) GenerateRefreshToken() (refToken dto.Token, error error) {
+func (g *JWTTokenManager) GenerateRefreshToken() (refToken dto.Token, error error) {
 	now := g.clock.Now()
 	buf := make([]byte, 32)
 
@@ -103,7 +103,7 @@ func (g *Generator) GenerateRefreshToken() (refToken dto.Token, error error) {
 	}, nil
 }
 
-func (g *Generator) GenerateTokenPair(userId uuid.UUID) (pair dto.TokenPair, err error) {
+func (g *JWTTokenManager) GenerateTokenPair(userId uuid.UUID) (pair dto.TokenPair, err error) {
 	accessToken, err := g.GenerateAccessToken(userId)
 	if err != nil {
 		return pair, err
@@ -120,7 +120,7 @@ func (g *Generator) GenerateTokenPair(userId uuid.UUID) (pair dto.TokenPair, err
 	}, nil
 }
 
-func (m *Generator) Validate(tokenString string) (uuid.UUID, error) {
+func (m *JWTTokenManager) Validate(tokenString string) (uuid.UUID, error) {
 	token, err := jwt.Parse(
 		[]byte(tokenString),
 		jwt.WithKey(jwa.HS256(), m.accessTokenSecret),

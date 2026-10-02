@@ -2,44 +2,44 @@ package middleware
 
 import (
 	"errors"
+	"net/http"
 	"strings"
 
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/korjeek/pinger/backend/internal/usecase/token"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 )
+
+const ContextKeyUserID = "userID"
+
+type AccessTokenParser interface {
+	Validate(tokenString string) (uuid.UUID, error)
+}
 
 var (
 	ErrNoAuthHeader      = errors.New("authorization header is missing")
 	ErrInvalidAuthHeader = errors.New("authorization header is malformed")
-	ErrClaimsInvalid     = errors.New("provided claims do not match expected scopes")
 )
 
-const (
-	authHeaderKey    = "Authorization"
-	bearerPrefix     = "Bearer "
-	ContextKeyUserID = "userID"
-)
-
-func JwtAuthMiddleware(manger token.Generator) echo.MiddlewareFunc {
+func JWTAuth(parser AccessTokenParser) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(ctx echo.Context) error {
-			authHeader := ctx.Request().Header.Get(authHeaderKey)
-			if authHeader == "" {
-				return ErrNoAuthHeader
+		return func(c echo.Context) error {
+			raw := c.Request().Header.Get(echo.HeaderAuthorization)
+			if raw == "" {
+				return echo.NewHTTPError(http.StatusUnauthorized, "missing Authorization header")
 			}
 
-			if !strings.HasPrefix(authHeader, bearerPrefix) {
-				return ErrInvalidAuthHeader
+			const prefix = "Bearer "
+			if len(raw) <= len(prefix) || !strings.EqualFold(raw[:len(prefix)], prefix) {
+				return echo.NewHTTPError(http.StatusUnauthorized, "invalid Authorization header format")
 			}
 
-			jws := strings.TrimPrefix(authHeader, bearerPrefix)
+			userID, err := parser.Validate(raw[len(prefix):])
+			if err != nil {
+				return echo.NewHTTPError(http.StatusUnauthorized, "invalid or expired access token")
+			}
 
-			id, err := manger.Validate(jws)
-
-			ctx.Set(ContextKeyUserID, id)
-
-			return next(ctx)
+			c.Set(ContextKeyUserID, userID)
+			return next(c)
 		}
 	}
 }

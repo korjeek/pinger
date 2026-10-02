@@ -4,5 +4,6 @@ generate:
   echo-server: true
   models: true
   embedded-spec: true
+  strict-server: true
 output-options:
   skip-prune: true
