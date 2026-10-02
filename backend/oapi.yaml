@@ -1,7 +1,8 @@
 ﻿package: api
-output: internal/controller/http/api.gen.go
-
+output: internal/controller/http/api/api.gen.go
 generate:
-  strict-server: true
-  models: true
   echo-server: true
+  models: true
+  embedded-spec: true
+output-options:
+  skip-prune: true

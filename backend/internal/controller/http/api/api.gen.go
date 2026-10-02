@@ -5,14 +5,16 @@ package api
 
 import (
 	"bytes"
-	"context"
-	"encoding/json"
-	"errors"
+	"compress/flate"
+	"encoding/base64"
 	"fmt"
-	"io"
 	"net/http"
+	"net/url"
+	"path"
+	"strings"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/labstack/echo/v4"
 	"github.com/oapi-codegen/runtime"
 	openapi_types "github.com/oapi-codegen/runtime/types"
@@ -473,1268 +475,158 @@ func RegisterHandlersWithOptions(router EchoRouter, si ServerInterface, options 
 
 }
 
-type BadRequestErrorJSONResponse ErrorResponse
-
-type ConflictErrorJSONResponse ErrorResponse
-
-type ForbiddenErrorJSONResponse ErrorResponse
-
-type InternalServerErrorJSONResponse ErrorResponse
-
-type NotFoundErrorJSONResponse ErrorResponse
-
-type UnauthorizedErrorJSONResponse ErrorResponse
-
-type OauthCallbackRequestObject struct {
-	Provider OauthCallbackParamsProvider `json:"provider"`
-	Params   OauthCallbackParams
-}
-
-type OauthCallbackResponseObject interface {
-	VisitOauthCallbackResponse(w http.ResponseWriter) error
-}
-
-type OauthCallback200ResponseHeaders struct {
-	SetCookie *string
-}
-
-type OauthCallback200JSONResponse struct {
-	Body    AuthResponse
-	Headers OauthCallback200ResponseHeaders
-}
-
-func (response OauthCallback200JSONResponse) VisitOauthCallbackResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if response.Headers.SetCookie != nil {
-		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
-	}
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type OauthCallback400JSONResponse struct{ BadRequestErrorJSONResponse }
-
-func (response OauthCallback400JSONResponse) VisitOauthCallbackResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type OauthCallback401JSONResponse struct{ UnauthorizedErrorJSONResponse }
-
-func (response OauthCallback401JSONResponse) VisitOauthCallbackResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(401)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type OauthCallback500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
-
-func (response OauthCallback500JSONResponse) VisitOauthCallbackResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LoginUserRequestObject struct {
-	Body *LoginUserJSONRequestBody
-}
-
-type LoginUserResponseObject interface {
-	VisitLoginUserResponse(w http.ResponseWriter) error
-}
-
-type LoginUser200ResponseHeaders struct {
-	SetCookie *string
-}
-
-type LoginUser200JSONResponse struct {
-	Body    AuthResponse
-	Headers LoginUser200ResponseHeaders
-}
-
-func (response LoginUser200JSONResponse) VisitLoginUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if response.Headers.SetCookie != nil {
-		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
-	}
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LoginUser400JSONResponse struct{ BadRequestErrorJSONResponse }
-
-func (response LoginUser400JSONResponse) VisitLoginUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LoginUser401JSONResponse struct{ UnauthorizedErrorJSONResponse }
-
-func (response LoginUser401JSONResponse) VisitLoginUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(401)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LoginUser500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
-
-func (response LoginUser500JSONResponse) VisitLoginUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LogoutUserRequestObject struct {
-}
-
-type LogoutUserResponseObject interface {
-	VisitLogoutUserResponse(w http.ResponseWriter) error
-}
-
-type LogoutUser204ResponseHeaders struct {
-	SetCookie *string
-}
-
-type LogoutUser204Response struct {
-	Headers LogoutUser204ResponseHeaders
-}
-
-func (response LogoutUser204Response) VisitLogoutUserResponse(w http.ResponseWriter) error {
-	if response.Headers.SetCookie != nil {
-		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
-	}
-	w.WriteHeader(204)
-	return nil
-}
-
-type LogoutUser401JSONResponse struct{ UnauthorizedErrorJSONResponse }
-
-func (response LogoutUser401JSONResponse) VisitLogoutUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(401)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type LogoutUser500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
-
-func (response LogoutUser500JSONResponse) VisitLogoutUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RefreshTokenRequestObject struct {
-}
-
-type RefreshTokenResponseObject interface {
-	VisitRefreshTokenResponse(w http.ResponseWriter) error
-}
-
-type RefreshToken200ResponseHeaders struct {
-	SetCookie *string
-}
-
-type RefreshToken200JSONResponse struct {
-	Body    AuthResponse
-	Headers RefreshToken200ResponseHeaders
-}
-
-func (response RefreshToken200JSONResponse) VisitRefreshTokenResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response.Body); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	if response.Headers.SetCookie != nil {
-		w.Header().Set("Set-Cookie", fmt.Sprint(*response.Headers.SetCookie))
-	}
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RefreshToken401JSONResponse ErrorResponse
-
-func (response RefreshToken401JSONResponse) VisitRefreshTokenResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(401)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type RefreshToken500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
-
-func (response RefreshToken500JSONResponse) VisitRefreshTokenResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetMonitorsRequestObject struct {
-	Params GetMonitorsParams
-}
-
-type GetMonitorsResponseObject interface {
-	VisitGetMonitorsResponse(w http.ResponseWriter) error
-}
-
-type GetMonitors200JSONResponse []MonitorResponse
-
-func (response GetMonitors200JSONResponse) VisitGetMonitorsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetMonitors400JSONResponse struct{ BadRequestErrorJSONResponse }
-
-func (response GetMonitors400JSONResponse) VisitGetMonitorsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetMonitors401JSONResponse struct{ UnauthorizedErrorJSONResponse }
-
-func (response GetMonitors401JSONResponse) VisitGetMonitorsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(401)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetMonitors500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
-
-func (response GetMonitors500JSONResponse) VisitGetMonitorsResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CreateMonitorRequestObject struct {
-	Body *CreateMonitorJSONRequestBody
-}
-
-type CreateMonitorResponseObject interface {
-	VisitCreateMonitorResponse(w http.ResponseWriter) error
-}
-
-type CreateMonitor201JSONResponse MonitorResponse
-
-func (response CreateMonitor201JSONResponse) VisitCreateMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(201)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CreateMonitor400JSONResponse struct{ BadRequestErrorJSONResponse }
-
-func (response CreateMonitor400JSONResponse) VisitCreateMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CreateMonitor401JSONResponse struct{ UnauthorizedErrorJSONResponse }
-
-func (response CreateMonitor401JSONResponse) VisitCreateMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(401)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CreateMonitor500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
-
-func (response CreateMonitor500JSONResponse) VisitCreateMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeleteMonitorRequestObject struct {
-	Id openapi_types.UUID `json:"id"`
-}
-
-type DeleteMonitorResponseObject interface {
-	VisitDeleteMonitorResponse(w http.ResponseWriter) error
-}
-
-type DeleteMonitor204Response struct {
-}
-
-func (response DeleteMonitor204Response) VisitDeleteMonitorResponse(w http.ResponseWriter) error {
-	w.WriteHeader(204)
-	return nil
-}
-
-type DeleteMonitor400JSONResponse struct{ BadRequestErrorJSONResponse }
-
-func (response DeleteMonitor400JSONResponse) VisitDeleteMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeleteMonitor401JSONResponse struct{ UnauthorizedErrorJSONResponse }
-
-func (response DeleteMonitor401JSONResponse) VisitDeleteMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(401)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeleteMonitor403JSONResponse struct{ ForbiddenErrorJSONResponse }
-
-func (response DeleteMonitor403JSONResponse) VisitDeleteMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeleteMonitor404JSONResponse struct{ NotFoundErrorJSONResponse }
-
-func (response DeleteMonitor404JSONResponse) VisitDeleteMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type DeleteMonitor500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
-
-func (response DeleteMonitor500JSONResponse) VisitDeleteMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateMonitorRequestObject struct {
-	Id   openapi_types.UUID `json:"id"`
-	Body *UpdateMonitorJSONRequestBody
-}
-
-type UpdateMonitorResponseObject interface {
-	VisitUpdateMonitorResponse(w http.ResponseWriter) error
-}
-
-type UpdateMonitor200JSONResponse MonitorResponse
-
-func (response UpdateMonitor200JSONResponse) VisitUpdateMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateMonitor400JSONResponse struct{ BadRequestErrorJSONResponse }
-
-func (response UpdateMonitor400JSONResponse) VisitUpdateMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateMonitor401JSONResponse struct{ UnauthorizedErrorJSONResponse }
-
-func (response UpdateMonitor401JSONResponse) VisitUpdateMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(401)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateMonitor403JSONResponse struct{ ForbiddenErrorJSONResponse }
-
-func (response UpdateMonitor403JSONResponse) VisitUpdateMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateMonitor404JSONResponse struct{ NotFoundErrorJSONResponse }
-
-func (response UpdateMonitor404JSONResponse) VisitUpdateMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateMonitor500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
-
-func (response UpdateMonitor500JSONResponse) VisitUpdateMonitorResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetSnapshotsByMonitorIDRequestObject struct {
-	Id     openapi_types.UUID `json:"id"`
-	Params GetSnapshotsByMonitorIDParams
-}
-
-type GetSnapshotsByMonitorIDResponseObject interface {
-	VisitGetSnapshotsByMonitorIDResponse(w http.ResponseWriter) error
-}
-
-type GetSnapshotsByMonitorID200JSONResponse []SnapshotResponse
-
-func (response GetSnapshotsByMonitorID200JSONResponse) VisitGetSnapshotsByMonitorIDResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetSnapshotsByMonitorID400JSONResponse struct{ BadRequestErrorJSONResponse }
-
-func (response GetSnapshotsByMonitorID400JSONResponse) VisitGetSnapshotsByMonitorIDResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetSnapshotsByMonitorID401JSONResponse struct{ UnauthorizedErrorJSONResponse }
-
-func (response GetSnapshotsByMonitorID401JSONResponse) VisitGetSnapshotsByMonitorIDResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(401)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetSnapshotsByMonitorID403JSONResponse struct{ ForbiddenErrorJSONResponse }
-
-func (response GetSnapshotsByMonitorID403JSONResponse) VisitGetSnapshotsByMonitorIDResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetSnapshotsByMonitorID404JSONResponse struct{ NotFoundErrorJSONResponse }
-
-func (response GetSnapshotsByMonitorID404JSONResponse) VisitGetSnapshotsByMonitorIDResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type GetSnapshotsByMonitorID500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
-
-func (response GetSnapshotsByMonitorID500JSONResponse) VisitGetSnapshotsByMonitorIDResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CreateUserRequestObject struct {
-	Body *CreateUserJSONRequestBody
-}
-
-type CreateUserResponseObject interface {
-	VisitCreateUserResponse(w http.ResponseWriter) error
-}
-
-type CreateUser201JSONResponse UserResponse
-
-func (response CreateUser201JSONResponse) VisitCreateUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(201)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CreateUser400JSONResponse struct{ BadRequestErrorJSONResponse }
-
-func (response CreateUser400JSONResponse) VisitCreateUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CreateUser409JSONResponse struct{ ConflictErrorJSONResponse }
-
-func (response CreateUser409JSONResponse) VisitCreateUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(409)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type CreateUser500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
-
-func (response CreateUser500JSONResponse) VisitCreateUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateUserRequestObject struct {
-	Id   openapi_types.UUID `json:"id"`
-	Body *UpdateUserJSONRequestBody
-}
-
-type UpdateUserResponseObject interface {
-	VisitUpdateUserResponse(w http.ResponseWriter) error
-}
-
-type UpdateUser200JSONResponse UserResponse
-
-func (response UpdateUser200JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(200)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateUser400JSONResponse struct{ BadRequestErrorJSONResponse }
-
-func (response UpdateUser400JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(400)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateUser401JSONResponse struct{ UnauthorizedErrorJSONResponse }
-
-func (response UpdateUser401JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(401)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateUser403JSONResponse struct{ ForbiddenErrorJSONResponse }
-
-func (response UpdateUser403JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(403)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateUser404JSONResponse struct{ NotFoundErrorJSONResponse }
-
-func (response UpdateUser404JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(404)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateUser409JSONResponse struct{ ConflictErrorJSONResponse }
-
-func (response UpdateUser409JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(409)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-type UpdateUser500JSONResponse struct {
-	InternalServerErrorJSONResponse
-}
-
-func (response UpdateUser500JSONResponse) VisitUpdateUserResponse(w http.ResponseWriter) error {
-
-	var buf bytes.Buffer
-	if err := json.NewEncoder(&buf).Encode(response); err != nil {
-		return err
-	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(500)
-	_, err := buf.WriteTo(w)
-	return err
-}
-
-// StrictServerInterface represents all server handlers.
-type StrictServerInterface interface {
-	// OauthCallback OAuth callback handler
-	// (GET /auth/callback/{provider})
-	OauthCallback(ctx context.Context, request OauthCallbackRequestObject) (OauthCallbackResponseObject, error)
-	// LoginUser Logs user into the system
-	// (POST /auth/login)
-	LoginUser(ctx context.Context, request LoginUserRequestObject) (LoginUserResponseObject, error)
-	// LogoutUser Revoke the current refresh token and end the session
-	// (POST /auth/logout)
-	LogoutUser(ctx context.Context, request LogoutUserRequestObject) (LogoutUserResponseObject, error)
-	// RefreshToken Rotate the refresh token and issue a new access token
-	// (POST /auth/refresh)
-	RefreshToken(ctx context.Context, request RefreshTokenRequestObject) (RefreshTokenResponseObject, error)
-	// GetMonitors Get monitors for current user
-	// (GET /monitors)
-	GetMonitors(ctx context.Context, request GetMonitorsRequestObject) (GetMonitorsResponseObject, error)
-	// CreateMonitor Add object to monitor
-	// (POST /monitors)
-	CreateMonitor(ctx context.Context, request CreateMonitorRequestObject) (CreateMonitorResponseObject, error)
-	// DeleteMonitor Delete a monitor
-	// (DELETE /monitors/{id})
-	DeleteMonitor(ctx context.Context, request DeleteMonitorRequestObject) (DeleteMonitorResponseObject, error)
-	// UpdateMonitor Update monitor configuration
-	// (PATCH /monitors/{id})
-	UpdateMonitor(ctx context.Context, request UpdateMonitorRequestObject) (UpdateMonitorResponseObject, error)
-	// GetSnapshotsByMonitorID Get snapshots by monitor ID
-	// (GET /monitors/{id}/snapshots)
-	GetSnapshotsByMonitorID(ctx context.Context, request GetSnapshotsByMonitorIDRequestObject) (GetSnapshotsByMonitorIDResponseObject, error)
-	// CreateUser Create user
-	// (POST /user)
-	CreateUser(ctx context.Context, request CreateUserRequestObject) (CreateUserResponseObject, error)
-	// UpdateUser Update user
-	// (PATCH /user/{id})
-	UpdateUser(ctx context.Context, request UpdateUserRequestObject) (UpdateUserResponseObject, error)
-}
-
-type StrictHandlerFunc func(ctx echo.Context, request any) (any, error)
-type StrictMiddlewareFunc func(f StrictHandlerFunc, operationID string) StrictHandlerFunc
-
-func NewStrictHandler(ssi StrictServerInterface, middlewares []StrictMiddlewareFunc) ServerInterface {
-	return &strictHandler{ssi: ssi, middlewares: middlewares}
-}
-
-type strictHandler struct {
-	ssi         StrictServerInterface
-	middlewares []StrictMiddlewareFunc
-}
-
-// OauthCallback operation middleware
-func (sh *strictHandler) OauthCallback(ctx echo.Context, provider OauthCallbackParamsProvider, params OauthCallbackParams) error {
-	var request OauthCallbackRequestObject
-
-	request.Provider = provider
-	request.Params = params
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.OauthCallback(ctx.Request().Context(), request.(OauthCallbackRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "OauthCallback")
-	}
-
-	response, err := handler(ctx, request)
-
+// Base64 encoded, compressed with deflate, json marshaled OpenAPI spec.
+// Stored as a slice of fixed-width chunks rather than one concatenated
+// const string: with thousands of chunks the chained `+` fold is several
+// times slower for the Go compiler than parsing a slice literal.
+var swaggerSpec = []string{
+	"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",
+	"AEWjRM+nmPcXb2f/OwA=",
+}
+
+// decodeSpec returns the embedded OpenAPI spec as raw JSON bytes,
+// after base64-decoding and flate-decompressing the embedded blob.
+func decodeSpec() ([]byte, error) {
+	encoded := strings.Join(swaggerSpec, "")
+	compressed, err := base64.StdEncoding.DecodeString(encoded)
 	if err != nil {
-		return err
-	} else if validResponse, ok := response.(OauthCallbackResponseObject); ok {
-		return validResponse.VisitOauthCallbackResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
+		return nil, fmt.Errorf("error base64 decoding spec: %w", err)
 	}
-	return nil
+	zr := flate.NewReader(bytes.NewReader(compressed))
+	var buf bytes.Buffer
+	if _, err := buf.ReadFrom(zr); err != nil {
+		return nil, fmt.Errorf("read flate: %w", err)
+	}
+	if err := zr.Close(); err != nil {
+		return nil, fmt.Errorf("close flate reader: %w", err)
+	}
+
+	return buf.Bytes(), nil
 }
 
-// LoginUser operation middleware
-func (sh *strictHandler) LoginUser(ctx echo.Context) error {
-	var request LoginUserRequestObject
+var rawSpec = decodeSpecCached()
 
-	var body LoginUserJSONRequestBody
-	var err error
-	if binder, ok := ctx.Echo().Binder.(*echo.DefaultBinder); ok {
-		// Bind only the request body, so that path and query parameters
-		// are not also bound into the body struct.
-		err = binder.BindBody(ctx, &body)
-	} else {
-		// A custom binder is installed on the Echo instance; defer to it
-		// entirely, since echo.Binder does not expose body-only binding.
-		err = ctx.Bind(&body)
+// a naive cache of the decoded OpenAPI spec
+func decodeSpecCached() func() ([]byte, error) {
+	data, err := decodeSpec()
+	return func() ([]byte, error) {
+		return data, err
 	}
-	if err != nil {
-		return err
-	}
-	request.Body = &body
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.LoginUser(ctx.Request().Context(), request.(LoginUserRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "LoginUser")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(LoginUserResponseObject); ok {
-		return validResponse.VisitLoginUserResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
 }
 
-// LogoutUser operation middleware
-func (sh *strictHandler) LogoutUser(ctx echo.Context) error {
-	var request LogoutUserRequestObject
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.LogoutUser(ctx.Request().Context(), request.(LogoutUserRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "LogoutUser")
+// Constructs a synthetic filesystem for resolving external references when loading openapi specifications.
+func PathToRawSpec(pathToFile string) map[string]func() ([]byte, error) {
+	res := make(map[string]func() ([]byte, error))
+	if len(pathToFile) > 0 {
+		res[pathToFile] = rawSpec
 	}
 
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(LogoutUserResponseObject); ok {
-		return validResponse.VisitLogoutUserResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
+	return res
 }
 
-// RefreshToken operation middleware
-func (sh *strictHandler) RefreshToken(ctx echo.Context) error {
-	var request RefreshTokenRequestObject
+// GetSpec returns the OpenAPI specification corresponding to the generated
+// code in this file. External references in the spec are resolved through
+// PathToRawSpec; externally-referenced files must be embedded in their
+// corresponding Go packages (via the import-mapping feature). URL-based
+// external refs are not supported.
+func GetSpec() (swagger *openapi3.T, err error) {
+	resolvePath := PathToRawSpec("")
 
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.RefreshToken(ctx.Request().Context(), request.(RefreshTokenRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "RefreshToken")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(RefreshTokenResponseObject); ok {
-		return validResponse.VisitRefreshTokenResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
-// GetMonitors operation middleware
-func (sh *strictHandler) GetMonitors(ctx echo.Context, params GetMonitorsParams) error {
-	var request GetMonitorsRequestObject
-
-	request.Params = params
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.GetMonitors(ctx.Request().Context(), request.(GetMonitorsRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetMonitors")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(GetMonitorsResponseObject); ok {
-		return validResponse.VisitGetMonitorsResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
-// CreateMonitor operation middleware
-func (sh *strictHandler) CreateMonitor(ctx echo.Context) error {
-	var request CreateMonitorRequestObject
-
-	var body CreateMonitorJSONRequestBody
-	var err error
-	if binder, ok := ctx.Echo().Binder.(*echo.DefaultBinder); ok {
-		// Bind only the request body, so that path and query parameters
-		// are not also bound into the body struct.
-		err = binder.BindBody(ctx, &body)
-	} else {
-		// A custom binder is installed on the Echo instance; defer to it
-		// entirely, since echo.Binder does not expose body-only binding.
-		err = ctx.Bind(&body)
-	}
-	if err != nil {
-		if !errors.Is(err, io.EOF) {
-			return err
+	loader := openapi3.NewLoader()
+	loader.IsExternalRefsAllowed = true
+	loader.ReadFromURIFunc = func(loader *openapi3.Loader, url *url.URL) ([]byte, error) {
+		pathToFile := url.String()
+		pathToFile = path.Clean(pathToFile)
+		getSpec, ok := resolvePath[pathToFile]
+		if !ok {
+			err1 := fmt.Errorf("path not found: %s", pathToFile)
+			return nil, err1
 		}
-	} else {
-		request.Body = &body
+		return getSpec()
 	}
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.CreateMonitor(ctx.Request().Context(), request.(CreateMonitorRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CreateMonitor")
-	}
-
-	response, err := handler(ctx, request)
-
+	var specData []byte
+	specData, err = rawSpec()
 	if err != nil {
-		return err
-	} else if validResponse, ok := response.(CreateMonitorResponseObject); ok {
-		return validResponse.VisitCreateMonitorResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
+		return
 	}
-	return nil
+	swagger, err = loader.LoadFromData(specData)
+	if err != nil {
+		return
+	}
+	return
 }
 
-// DeleteMonitor operation middleware
-func (sh *strictHandler) DeleteMonitor(ctx echo.Context, id openapi_types.UUID) error {
-	var request DeleteMonitorRequestObject
-
-	request.Id = id
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.DeleteMonitor(ctx.Request().Context(), request.(DeleteMonitorRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "DeleteMonitor")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(DeleteMonitorResponseObject); ok {
-		return validResponse.VisitDeleteMonitorResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
+// GetSpecJSON returns the raw JSON bytes of the embedded OpenAPI
+// specification: decompressed but not unmarshaled. External references
+// are not resolved here; the bytes are the spec exactly as embedded by
+// codegen. The result is cached at package init time, so repeated calls
+// are cheap.
+func GetSpecJSON() ([]byte, error) {
+	return rawSpec()
 }
 
-// UpdateMonitor operation middleware
-func (sh *strictHandler) UpdateMonitor(ctx echo.Context, id openapi_types.UUID) error {
-	var request UpdateMonitorRequestObject
-
-	request.Id = id
-
-	var body UpdateMonitorJSONRequestBody
-	var err error
-	if binder, ok := ctx.Echo().Binder.(*echo.DefaultBinder); ok {
-		// Bind only the request body, so that path and query parameters
-		// are not also bound into the body struct.
-		err = binder.BindBody(ctx, &body)
-	} else {
-		// A custom binder is installed on the Echo instance; defer to it
-		// entirely, since echo.Binder does not expose body-only binding.
-		err = ctx.Bind(&body)
-	}
-	if err != nil {
-		return err
-	}
-	request.Body = &body
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.UpdateMonitor(ctx.Request().Context(), request.(UpdateMonitorRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UpdateMonitor")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(UpdateMonitorResponseObject); ok {
-		return validResponse.VisitUpdateMonitorResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
-// GetSnapshotsByMonitorID operation middleware
-func (sh *strictHandler) GetSnapshotsByMonitorID(ctx echo.Context, id openapi_types.UUID, params GetSnapshotsByMonitorIDParams) error {
-	var request GetSnapshotsByMonitorIDRequestObject
-
-	request.Id = id
-	request.Params = params
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.GetSnapshotsByMonitorID(ctx.Request().Context(), request.(GetSnapshotsByMonitorIDRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetSnapshotsByMonitorID")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(GetSnapshotsByMonitorIDResponseObject); ok {
-		return validResponse.VisitGetSnapshotsByMonitorIDResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
-// CreateUser operation middleware
-func (sh *strictHandler) CreateUser(ctx echo.Context) error {
-	var request CreateUserRequestObject
-
-	var body CreateUserJSONRequestBody
-	var err error
-	if binder, ok := ctx.Echo().Binder.(*echo.DefaultBinder); ok {
-		// Bind only the request body, so that path and query parameters
-		// are not also bound into the body struct.
-		err = binder.BindBody(ctx, &body)
-	} else {
-		// A custom binder is installed on the Echo instance; defer to it
-		// entirely, since echo.Binder does not expose body-only binding.
-		err = ctx.Bind(&body)
-	}
-	if err != nil {
-		if !errors.Is(err, io.EOF) {
-			return err
-		}
-	} else {
-		request.Body = &body
-	}
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.CreateUser(ctx.Request().Context(), request.(CreateUserRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "CreateUser")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(CreateUserResponseObject); ok {
-		return validResponse.VisitCreateUserResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
-}
-
-// UpdateUser operation middleware
-func (sh *strictHandler) UpdateUser(ctx echo.Context, id openapi_types.UUID) error {
-	var request UpdateUserRequestObject
-
-	request.Id = id
-
-	var body UpdateUserJSONRequestBody
-	var err error
-	if binder, ok := ctx.Echo().Binder.(*echo.DefaultBinder); ok {
-		// Bind only the request body, so that path and query parameters
-		// are not also bound into the body struct.
-		err = binder.BindBody(ctx, &body)
-	} else {
-		// A custom binder is installed on the Echo instance; defer to it
-		// entirely, since echo.Binder does not expose body-only binding.
-		err = ctx.Bind(&body)
-	}
-	if err != nil {
-		return err
-	}
-	request.Body = &body
-
-	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.UpdateUser(ctx.Request().Context(), request.(UpdateUserRequestObject))
-	}
-	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "UpdateUser")
-	}
-
-	response, err := handler(ctx, request)
-
-	if err != nil {
-		return err
-	} else if validResponse, ok := response.(UpdateUserResponseObject); ok {
-		return validResponse.VisitUpdateUserResponse(ctx.Response())
-	} else if response != nil {
-		return fmt.Errorf("unexpected response type: %T", response)
-	}
-	return nil
+// GetSwagger returns the OpenAPI specification corresponding to the
+// generated code in this file.
+//
+// Deprecated: GetSwagger predates kin-openapi renaming openapi3.Swagger
+// to openapi3.T. Use [GetSpec] instead. This wrapper is retained for
+// backwards compatibility.
+func GetSwagger() (*openapi3.T, error) {
+	return GetSpec()
 }

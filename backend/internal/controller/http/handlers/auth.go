@@ -1,4 +1,4 @@
-﻿package handlers
+package handlers
 
 import (
 	"context"
@@ -8,12 +8,13 @@ import (
 	"github.com/korjeek/pinger/backend/internal/controller/http/api"
 	"github.com/korjeek/pinger/backend/internal/dto"
 	"github.com/korjeek/pinger/backend/internal/usecase"
+	"github.com/labstack/echo/v4"
 )
 
 const (
 	refreshTokenCookieName = "refresh_token"
 	refreshTokenCookiePath = "/auth"
-	refreshTokenType = "Bearer"
+	refreshTokenType       = "Bearer"
 )
 
 type AuthHandler struct {
@@ -58,8 +59,9 @@ func (h *AuthHandler) LoginUser(ctx context.Context, request api.LoginUserReques
 }
 
 func (h *AuthHandler) LogoutUser(ctx context.Context, request api.LogoutUserRequestObject) (api.LogoutUserResponseObject, error) {
-	token, _ := ctx.Value("refreshToken").(string)
-	if err :=  h.authService.LogoutUser(ctx, token); err != nil {
+	ctx, _ := ctx.Value(echo.ContextKey).(echo.Context)
+	cookie, err := ctx.Cookie("refresh_token")
+	if err := h.authService.LogoutUser(ctx, token); err != nil {
 		return nil, err
 	}
 
@@ -88,7 +90,7 @@ func (h *AuthHandler) RefreshToken(ctx context.Context, request api.RefreshToken
 			TokenType:   "",
 		},
 		Headers: api.RefreshToken200ResponseHeaders{
-			SetCookie: ,
-		}
+			SetCookie: "",
+		},
 	}, nil
 }

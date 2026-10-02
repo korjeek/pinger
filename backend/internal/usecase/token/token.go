@@ -7,15 +7,21 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/korjeek/pinger/backend/internal/dto"
+	"github.com/lestrrat-go/jwx/v4/jwa"
+	"github.com/lestrrat-go/jwx/v4/jwt"
 )
 
 var (
 	ErrEmptySecret           = errors.New("access token secret cannot be empty")
 	ErrFailedToGenerateBytes = errors.New("failed to generate random bytes for refresh token")
+	ErrFailedToBuildToken    = errors.New("failed to build access token")
 	ErrFailedToSignToken     = errors.New("failed to sign access token")
+
+	ErrInvalidToken   = errors.New("invalid access token")
+	ErrMissingSubject = errors.New("access token has no subject claim")
+	ErrInvalidSubject = errors.New("access token subject is not a valid UUID")
 )
 
 type GeneratorConfig struct {
@@ -45,10 +51,6 @@ type Generator struct {
 	refreshTokenTTL time.Duration
 }
 
-type AccessClaims struct {
-	jwt.RegisteredClaims
-}
-
 func NewGenerator(cfg GeneratorConfig, clock Clock) (*Generator, error) {
 	if len(cfg.ATC.Secret) == 0 {
 		return nil, ErrEmptySecret
@@ -66,22 +68,22 @@ func (g *Generator) GenerateAccessToken(userId uuid.UUID) (dto.Token, error) {
 	now := g.clock.Now()
 	expiresAt := now.Add(g.accessTokenTTL)
 
-	claims := AccessClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
-			Subject:   userId.String(),
-			IssuedAt:  jwt.NewNumericDate(now),
-			ExpiresAt: jwt.NewNumericDate(expiresAt),
-		},
+	tok, err := jwt.NewBuilder().
+		Subject(userId.String()).
+		IssuedAt(now).
+		Expiration(expiresAt).
+		Build()
+	if err != nil {
+		return dto.Token{}, fmt.Errorf("%w: %v", ErrFailedToBuildToken, err)
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signedJWT, err := token.SignedString(g.accessTokenSecret)
+	signed, err := jwt.Sign(tok, jwt.WithKey(jwa.HS256(), g.accessTokenSecret))
 	if err != nil {
 		return dto.Token{}, fmt.Errorf("%w: %v", ErrFailedToSignToken, err)
 	}
 
 	return dto.Token{
-		Payload:   signedJWT,
+		Payload:   string(signed),
 		ExpiresAt: expiresAt,
 	}, err
 }
@@ -116,4 +118,26 @@ func (g *Generator) GenerateTokenPair(userId uuid.UUID) (pair dto.TokenPair, err
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	}, nil
+}
+
+func (m *Generator) Validate(tokenString string) (uuid.UUID, error) {
+	token, err := jwt.Parse(
+		[]byte(tokenString),
+		jwt.WithKey(jwa.HS256(), m.accessTokenSecret),
+	)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("%w: %v", ErrInvalidToken, err)
+	}
+
+	sub, ok := token.Subject()
+	if !ok || sub == "" {
+		return uuid.Nil, ErrMissingSubject
+	}
+
+	userID, err := uuid.Parse(sub)
+	if err != nil {
+		return uuid.Nil, fmt.Errorf("%w: %v", ErrInvalidSubject, err)
+	}
+
+	return userID, nil
 }
