@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/korjeek/pinger/backend/internal/controller/http/api"
 	"github.com/korjeek/pinger/backend/internal/controller/http/utils"
 	"github.com/korjeek/pinger/backend/pkg/apperr"
@@ -19,9 +18,9 @@ func StrictErrorMiddleware(f api.StrictHandlerFunc, operationID string) api.Stri
 			return response, nil
 		}
 
-		if appErr, ok := errors.AsType[apperr.Error](err); ok {
-			traceID := uuid.New().String()
+		traceID := ctx.Response().Header().Get(echo.HeaderXRequestID)
 
+		if appErr, ok := errors.AsType[apperr.Error](err); ok {
 			slog.Error("domain error occurred",
 				"operation_id", operationID,
 				"code", appErr.Code.String(),

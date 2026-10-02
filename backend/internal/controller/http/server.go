@@ -2,51 +2,35 @@ package http
 
 import (
 	"log/slog"
-	"net/http"
 
-	api2 "github.com/korjeek/pinger/backend/internal/controller/http/api"
+	"github.com/korjeek/pinger/backend/internal/controller/http/api"
 	mdl "github.com/korjeek/pinger/backend/internal/controller/http/middleware"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
 
+const baseUrl = "/api"
+
 type ServerConfig struct {
 	Logger *slog.Logger
 
-	AccessTokenParser AccessTokenParser
+	AccessTokenParser mdl.AccessTokenParser
 
 	CookiePath   string
 	CookieDomain string
 	CookieSecure bool
 }
 
-func NewServer(cfg ServerConfig, impl api2.StrictServerInterface) *echo.Echo {
+func NewServer(cfg ServerConfig, impl api.StrictServerInterface) *echo.Echo {
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
 
+	e.Use(middleware.RequestID())
 	e.Use(middleware.Recover())
-	e.Use(TraceIDMiddleware())
-	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
-		LogMethod:  true,
-		LogURI:     true,
-		LogStatus:  true,
-		LogLatency: true,
-		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
-			cfg.Logger.Info("request",
-				"method", v.Method,
-				"uri", v.URI,
-				"status", v.Status,
-				"latency_ms", v.Latency.Milliseconds(),
-				"trace_id", TraceIDFromEcho(c),
-			)
-			return nil
-		},
-	}))
-	e.Use(RefreshTokenCookieMiddleware())
+	e.Use(middleware.RequestLogger())
 
-	auth := AuthMiddleware(cfg.AccessTokenParser)
-
+	auth := mdl.JWTAuth(cfg.AccessTokenParser)
 	opMW := map[string][]echo.MiddlewareFunc{
 		"updateUser":              {auth},
 		"getMonitors":             {auth},
@@ -56,20 +40,14 @@ func NewServer(cfg ServerConfig, impl api2.StrictServerInterface) *echo.Echo {
 		"getSnapshotsByMonitorID": {auth},
 	}
 
-	strictMW := []api2.StrictMiddlewareFunc{
+	strictMW := []api.StrictMiddlewareFunc{
 		mdl.StrictErrorMiddleware,
-		RefreshCookieWriterMiddleware(cookieConfig{
-			Path:     cfg.CookiePath,
-			Domain:   cfg.CookieDomain,
-			Secure:   cfg.CookieSecure,
-			SameSite: http.SameSiteStrictMode,
-		}),
 	}
 
-	handler := api2.NewStrictHandler(impl, strictMW)
+	handler := api.NewStrictHandler(impl, strictMW)
 
-	api2.RegisterHandlersWithOptions(e, handler, api2.RegisterHandlersOptions{
-		BaseURL:              "/api",
+	api.RegisterHandlersWithOptions(e, handler, api.RegisterHandlersOptions{
+		BaseURL:              baseUrl,
 		OperationMiddlewares: opMW,
 	})
 
